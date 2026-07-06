@@ -233,6 +233,53 @@ describe('launch service', () => {
     expect(launchResult).toEqual({ pid: 2233 });
   });
 
+  it('ignores Minecraft stdio so Forge console output cannot block startup', async () => {
+    const launch = vi.fn(async () => ({ pid: 2233 }));
+    const launcher = createXmclLauncherFromModules({
+      installer: {
+        Installer: {
+          getVersionList: vi.fn(),
+          install: vi.fn(),
+          installDependencies: vi.fn()
+        },
+        ForgeInstaller: {
+          install: vi.fn()
+        }
+      },
+      core: {
+        Version: { parse: vi.fn() },
+        launch
+      },
+      resolveJavaExecutable: async () => 'C:/Java/17/bin/java.exe'
+    });
+
+    await launcher.launchMinecraft({
+      rootDir: settings.appDirectory,
+      projectId: 'northvale',
+      projectDir: `${settings.appDirectory}/projects/northvale`,
+      minecraftVersion: '1.20.1',
+      loader: 'forge',
+      loaderVersion: '47.4.20',
+      javaMajor: 17,
+      memoryMb: 8192,
+      width: 1280,
+      height: 720,
+      fullscreen: false,
+      profile,
+      minecraftAccessToken: 'minecraft-token',
+      javaPath: 'C:/Java/17/bin/java.exe'
+    });
+
+    expect(launch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extraExecOption: expect.objectContaining({
+          detached: true,
+          stdio: 'ignore'
+        })
+      })
+    );
+  });
+
   it('reports granular Minecraft, Forge, and dependency install phases', async () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'bbt-install-phases-'));
     const resolvedVersion = { id: '1.20.1-forge-47.4.20', minecraftDirectory: 'mc', libraries: [] };

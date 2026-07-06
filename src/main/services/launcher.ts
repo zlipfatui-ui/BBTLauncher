@@ -376,7 +376,10 @@ export function createXmclLauncherFromModules(modules: XmclModuleSet): LauncherD
               height: options.height
             },
         javaPath,
-        extraExecOption: { detached: true }
+        extraExecOption: {
+          detached: true,
+          stdio: 'ignore'
+        }
       });
       return { pid: typeof child?.pid === 'number' ? child.pid : undefined };
     }
