@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.electron.json && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "release:win": "npm run clean:release && npm run build && electron-builder --win --x64",
-    "publish:win": "npm run clean:release && npm run build && electron-builder --win --x64 --publish always",
+    "publish:win": "npm run release:win && node scripts/publish-github-release.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

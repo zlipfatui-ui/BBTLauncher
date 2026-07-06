@@ -61,9 +61,7 @@ describe('Electron production build config', () => {
       url: 'https://github.com/zlipfatui-ui/BBTLauncher.git'
     });
     expect(packageJson.dependencies['electron-updater']).toBeDefined();
-    expect(packageJson.scripts['publish:win']).toBe(
-      'npm run clean:release && npm run build && electron-builder --win --x64 --publish always'
-    );
+    expect(packageJson.scripts['publish:win']).toBe('npm run release:win && node scripts/publish-github-release.mjs');
     expect(packageJson.build.publish).toEqual([
       {
         provider: 'github',
