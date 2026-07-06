@@ -5,13 +5,62 @@ import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import type { LauncherApi } from './launcherApi';
-import type { LaunchProgress, LauncherUpdateState, ProjectLaunchState, ProjectStateResult } from '../shared/types';
+import type {
+  AuthErrorCode,
+  IpcResult,
+  LaunchProgress,
+  LaunchResult,
+  LauncherManifest,
+  LauncherSettings,
+  LauncherUpdateState,
+  ProjectLaunchState,
+  ProjectStateResult,
+  SyncResult
+} from '../shared/types';
 
 const profile = {
   id: '898da750881840f09da4ea6822260b30',
   name: 'Zlevyn',
   avatarInitial: 'Z',
   provider: 'microsoft' as const
+};
+
+const defaultSettings: LauncherSettings = {
+  appDirectory: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
+  width: 1280,
+  height: 720,
+  fullscreen: false,
+  memoryMb: 8192,
+  selectedProject: 'northvale'
+};
+
+const defaultManifest: LauncherManifest = {
+  schemaVersion: 1,
+  generatedAt: '2026-07-05T00:00:00.000Z',
+  projects: [
+    {
+      id: 'northvale',
+      title: 'Northvale',
+      statusText: 'UP TO DATE',
+      minecraft: {
+        version: '1.20.1',
+        loader: 'forge',
+        loaderVersion: '47.4.20',
+        javaMajor: 17
+      },
+      artwork: {
+        cover: '/assets/images/logos/ss0-cover.jpg',
+        gallery: [
+          '/assets/images/gallery/ss0/01.jpg',
+          '/assets/images/gallery/ss0/02.jpg',
+          '/assets/images/gallery/ss0/03.png',
+          '/assets/images/gallery/ss0/04.png',
+          '/assets/images/gallery/ss0/05.png'
+        ]
+      },
+      files: []
+    }
+  ]
 };
 
 function makeApi(existingProfile: typeof profile | null = null): LauncherApi {
@@ -42,58 +91,24 @@ function makeApi(existingProfile: typeof profile | null = null): LauncherApi {
       getProfile: vi.fn(async () => existingProfile)
     },
     settings: {
-      load: vi.fn(async () => ({
-        appDirectory: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
-        width: 1280,
-        height: 720,
-        fullscreen: false,
-        memoryMb: 8192,
-        selectedProject: 'northvale'
-      })),
+      load: vi.fn(async () => defaultSettings),
       save: vi.fn(async (settings) => ({
         appDirectory: settings.appDirectory || 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
         width: settings.width || 1280,
         height: settings.height || 720,
         fullscreen: Boolean(settings.fullscreen),
         memoryMb: settings.memoryMb || 8192,
-        selectedProject: 'northvale'
+        selectedProject: 'northvale' as const
       })),
       selectAppDirectory: vi.fn(async () => 'D:/Games/BeforeBedtime')
     },
     manifest: {
-      refresh: vi.fn(async () => ({
-        schemaVersion: 1,
-        generatedAt: '2026-07-05T00:00:00.000Z',
-        projects: [
-          {
-            id: 'northvale',
-            title: 'Northvale',
-            statusText: 'UP TO DATE',
-            minecraft: {
-              version: '1.20.1',
-              loader: 'forge',
-              loaderVersion: '47.4.20',
-              javaMajor: 17
-            },
-            artwork: {
-              cover: '/assets/images/logos/ss0-cover.jpg',
-              gallery: [
-                '/assets/images/gallery/ss0/01.jpg',
-                '/assets/images/gallery/ss0/02.jpg',
-                '/assets/images/gallery/ss0/03.png',
-                '/assets/images/gallery/ss0/04.png',
-                '/assets/images/gallery/ss0/05.png'
-              ]
-            },
-            files: []
-          }
-        ]
-      }))
+      refresh: vi.fn(async () => defaultManifest)
     },
     project: {
       getState: vi.fn(async () => ({ state: 'ready' as const, missing: 0, changed: 0, stale: 0 })),
       getLaunchState: vi.fn(async () => ({ status: 'idle' as const })),
-      sync: vi.fn(async () => ({ status: 'ready', downloaded: 0, skipped: 0, totalBytes: 0, downloadedBytes: 0 })),
+      sync: vi.fn(async () => ({ status: 'ready' as const, downloaded: 0, skipped: 0, totalBytes: 0, downloadedBytes: 0 })),
       launch: vi.fn(async () => ({ ok: true as const, value: { pid: 1234 } })),
       stop: vi.fn(async () => {
         const state = { status: 'idle' as const };
@@ -115,10 +130,7 @@ function makeApi(existingProfile: typeof profile | null = null): LauncherApi {
       onState: vi.fn((listener) => {
         updaterListener = listener;
         return () => undefined;
-      }),
-      emit(state: LauncherUpdateState) {
-        updaterListener?.(state);
-      }
+      })
     },
     shell: {
       openExternal: vi.fn(async () => undefined)
@@ -224,9 +236,9 @@ describe('App', () => {
     const user = userEvent.setup();
     const api = makeApi();
     api.auth.loginMicrosoft = vi.fn(async () => ({
-      ok: false,
+      ok: false as const,
       error: {
-        code: 'AUTH_CONFIG_MISSING',
+        code: 'AUTH_CONFIG_MISSING' as AuthErrorCode,
         message: 'Microsoft Login is not configured for this build.'
       }
     }));
@@ -263,7 +275,7 @@ describe('App', () => {
       return () => undefined;
     });
     api.project.launch = vi.fn(
-      () => new Promise(() => undefined)
+      () => new Promise<IpcResult<LaunchResult>>(() => undefined)
     );
     render(<App api={api} />);
 
@@ -290,7 +302,7 @@ describe('App', () => {
       return () => undefined;
     });
     api.project.launch = vi.fn(
-      () => new Promise(() => undefined)
+      () => new Promise<IpcResult<LaunchResult>>(() => undefined)
     );
     render(<App api={api} />);
 
@@ -353,7 +365,7 @@ describe('App', () => {
       updaterListener = listener;
       return () => undefined;
     });
-    api.updater.download = vi.fn(async () => {
+    api.updater.download = vi.fn(async (): Promise<LauncherUpdateState> => {
       updaterListener?.({ status: 'downloading', version: '0.1.1', percent: 45 });
       return { status: 'downloading', version: '0.1.1', percent: 45 };
     });
@@ -382,7 +394,7 @@ describe('App', () => {
   it('shows INSTALL for a fresh project and syncs without launching', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
-    api.project.getState = vi.fn(async () => ({ state: 'install', missing: 320, changed: 0, stale: 0 }));
+    api.project.getState = vi.fn(async () => ({ state: 'install' as const, missing: 320, changed: 0, stale: 0 }));
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
@@ -402,7 +414,7 @@ describe('App', () => {
     let resolveRecheck: ((state: ProjectStateResult) => void) | undefined;
     api.project.getState = vi
       .fn()
-      .mockResolvedValueOnce({ state: 'ready', missing: 0, changed: 0, stale: 0 })
+      .mockResolvedValueOnce({ state: 'ready' as const, missing: 0, changed: 0, stale: 0 })
       .mockReturnValueOnce(new Promise<ProjectStateResult>((resolve) => {
         resolveRecheck = resolve;
       }));
@@ -426,7 +438,7 @@ describe('App', () => {
   it('shows UPDATE and UPDATE ! when managed files differ', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
-    api.project.getState = vi.fn(async () => ({ state: 'update', missing: 1, changed: 2, stale: 1 }));
+    api.project.getState = vi.fn(async () => ({ state: 'update' as const, missing: 1, changed: 2, stale: 1 }));
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
@@ -442,13 +454,13 @@ describe('App', () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
     let progressListener: ((progress: LaunchProgress) => void) | undefined;
-    api.project.getState = vi.fn(async () => ({ state: 'update', missing: 1, changed: 0, stale: 0 }));
+    api.project.getState = vi.fn(async () => ({ state: 'update' as const, missing: 1, changed: 0, stale: 0 }));
     api.project.onProgress = vi.fn((listener) => {
       progressListener = listener;
       return () => undefined;
     });
     api.project.sync = vi.fn(
-      () => new Promise(() => undefined)
+      () => new Promise<SyncResult>(() => undefined)
     );
     const { container } = render(<App api={api} />);
 

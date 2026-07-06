@@ -72,4 +72,41 @@ describe('runtime cache inspection', () => {
       })
     ).resolves.toMatchObject({ marker: expect.objectContaining({ projectId: 'northvale' }) });
   });
+
+  it('marks the runtime incomplete when native classifier libraries are missing', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'bbt-runtime-native-'));
+    await createCompleteRuntime(rootDir);
+    const forgeJsonPath = join(
+      rootDir,
+      'minecraft',
+      'versions',
+      '1.20.1-forge-47.4.20',
+      '1.20.1-forge-47.4.20.json'
+    );
+    await writeFile(forgeJsonPath, JSON.stringify({
+      libraries: [
+        {
+          downloads: {
+            artifact: { path: 'com/example/example-lib/1.0.0/example-lib-1.0.0.jar' },
+            classifiers: {
+              'natives-windows': { path: 'com/example/example-lib/1.0.0/example-lib-1.0.0-natives-windows.jar' }
+            }
+          }
+        }
+      ]
+    }));
+
+    await expect(
+      inspectMinecraftRuntime({
+        rootDir,
+        projectId: 'northvale',
+        minecraftVersion: '1.20.1',
+        loaderVersion: '47.4.20',
+        javaPath: 'C:/Java/17/bin/java.exe'
+      })
+    ).resolves.toMatchObject({
+      complete: false,
+      missing: expect.arrayContaining(['library:com/example/example-lib/1.0.0/example-lib-1.0.0-natives-windows.jar'])
+    });
+  });
 });

@@ -139,7 +139,8 @@ const projectLaunchManager = createProjectLaunchManager({
       pid: state.pid,
       runtime: {
         minecraftVersion: project?.minecraft.version || '1.20.1',
-        loaderVersion: project?.minecraft.loaderVersion || '47.4.20'
+        loaderVersion: project?.minecraft.loaderVersion || '47.4.20',
+        javaPath: join(runtimeRoot, 'runtimes', 'microsoft-jdk-17-x64', 'bin', 'java.exe')
       }
     });
   }

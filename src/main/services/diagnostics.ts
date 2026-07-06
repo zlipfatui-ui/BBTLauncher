@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, open, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -25,11 +25,18 @@ export interface LaunchDiagnosticsResult {
 }
 
 async function readTail(path: string): Promise<string | null> {
+  let file: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    const text = await readFile(path, 'utf8');
-    return text.length > maxLogTailBytes ? text.slice(text.length - maxLogTailBytes) : text;
+    file = await open(path, 'r');
+    const { size } = await file.stat();
+    const length = Math.min(size, maxLogTailBytes);
+    const buffer = Buffer.alloc(length);
+    await file.read(buffer, 0, length, size - length);
+    return buffer.toString('utf8');
   } catch {
     return null;
+  } finally {
+    await file?.close().catch(() => undefined);
   }
 }
 

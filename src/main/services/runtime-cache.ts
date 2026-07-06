@@ -62,14 +62,19 @@ async function missingLibraryPaths(minecraftLocation: string, forgeJsonPath: str
   }
 
   const libraries = Array.isArray((parsed as { libraries?: unknown }).libraries)
-    ? (parsed as { libraries: Array<{ downloads?: { artifact?: { path?: unknown } } }> }).libraries
+    ? (parsed as { libraries: Array<{ downloads?: { artifact?: { path?: unknown }; classifiers?: Record<string, { path?: unknown }> } }> }).libraries
     : [];
   const missing: string[] = [];
   for (const library of libraries) {
-    const path = library.downloads?.artifact?.path;
-    if (typeof path !== 'string' || !path) continue;
-    const libraryPath = join(minecraftLocation, 'libraries', ...path.split('/'));
-    if (!(await exists(libraryPath))) missing.push(`library:${path}`);
+    const paths = [
+      library.downloads?.artifact?.path,
+      ...Object.values(library.downloads?.classifiers || {}).map((classifier) => classifier.path)
+    ];
+    for (const path of paths) {
+      if (typeof path !== 'string' || !path) continue;
+      const libraryPath = join(minecraftLocation, 'libraries', ...path.split('/'));
+      if (!(await exists(libraryPath))) missing.push(`library:${path}`);
+    }
   }
   return missing;
 }

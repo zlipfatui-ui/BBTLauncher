@@ -44,6 +44,8 @@ describe('Electron production build config', () => {
       { target: 'nsis', arch: ['x64'] },
       { target: 'portable', arch: ['x64'] }
     ]);
+    expect(packageJson.build.nsis.artifactName).toBe('BeforeBedtime-Launcher-Setup-${version}.${ext}');
+    expect(packageJson.build.portable.artifactName).toBe('BeforeBedtime-Launcher-Portable-${version}.${ext}');
   });
 
   it('configures GitHub Releases as the public auto-update feed', () => {
@@ -60,7 +62,7 @@ describe('Electron production build config', () => {
         provider: 'github',
         owner: 'zlipfatui-ui',
         repo: 'BBTLauncher',
-        releaseType: 'draft'
+        releaseType: 'release'
       }
     ]);
   });

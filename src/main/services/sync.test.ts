@@ -234,4 +234,24 @@ describe('project sync', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('refuses to sync forbidden manifest paths even if validation was bypassed', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-'));
+    const manifest = makeManifest('save data');
+    manifest.projects[0].files[0].path = 'saves/world/level.dat';
+
+    try {
+      await expect(
+        syncProject({
+          rootDir: root,
+          projectId: 'northvale',
+          manifest,
+          baseUrl: 'https://bbt.example',
+          fetchImpl: async () => new Response('save data')
+        })
+      ).rejects.toThrow(/refusing to sync/i);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

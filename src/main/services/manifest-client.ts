@@ -1,6 +1,7 @@
 import type { LauncherFile, LauncherManifest, LauncherProject } from '../../shared/types.js';
 import { NORTHVALE_PROJECT_ID } from '../../shared/types.js';
 import { normalizeProjectFilePath } from './path-safety.js';
+import { isForbiddenProjectManifestPath, isLauncherManagedProjectPath } from './managed-project-files.js';
 
 export interface ManifestClientOptions {
   baseUrl: string;
@@ -31,6 +32,12 @@ function validateFile(value: unknown): LauncherFile {
   }
   if (!/^[A-F0-9]{64}$/.test(sha256)) {
     throw new Error(`Invalid launcher manifest: file sha256 must be 64 hex chars for ${path}.`);
+  }
+  if (!isLauncherManagedProjectPath(path)) {
+    throw new Error(`Invalid launcher manifest: file path is not launcher-managed: ${path}`);
+  }
+  if (isForbiddenProjectManifestPath(path)) {
+    throw new Error(`Invalid launcher manifest: forbidden file path: ${path}`);
   }
   if (!Number.isInteger(size) || size < 0) {
     throw new Error(`Invalid launcher manifest: file size must be a positive integer for ${path}.`);

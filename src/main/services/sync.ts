@@ -6,6 +6,8 @@ import { normalizeProjectFilePath, assertInsideDirectory } from './path-safety.j
 import { sha256Buffer, sha256File } from './hash.js';
 import {
   collectLocalOwnedFiles,
+  isForbiddenProjectManifestPath,
+  isLauncherManagedProjectPath,
   isLauncherOwnedProjectPath
 } from './managed-project-files.js';
 
@@ -33,6 +35,9 @@ async function isFileClean(destination: string, file: LauncherFile): Promise<boo
 
 function resolveProjectFile(rootDir: string, projectId: string, filePath: string): string {
   const safePath = normalizeProjectFilePath(filePath);
+  if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
+    throw new Error(`Refusing to sync unmanaged or forbidden project file: ${safePath}`);
+  }
   return assertInsideDirectory(join(rootDir, 'projects', projectId), join(rootDir, 'projects', projectId, safePath));
 }
 

@@ -189,6 +189,7 @@ describe('launch service', () => {
       javaMajor: 17,
       javaPath: 'C:/Java/17/bin/java.exe'
     });
+    expect(installResult.javaPath).toBe('C:/Java/17/bin/java.exe');
     const launchResult = await launcher.launchMinecraft({
       rootDir,
       projectId: 'northvale',
@@ -203,7 +204,7 @@ describe('launch service', () => {
       fullscreen: false,
       profile,
       minecraftAccessToken: 'minecraft-token',
-      javaPath: installResult.javaPath
+      javaPath: installResult.javaPath!
     });
 
     expect(install).toHaveBeenCalledWith('client', { id: '1.20.1', url: 'https://example.test/1.20.1.json' }, expect.stringContaining('minecraft'));

@@ -32,4 +32,25 @@ describe('launch diagnostics', () => {
     expect(diagnostic).toContain('line 39');
     expect(diagnostic).toContain('thread dump');
   });
+
+  it('stores only the bounded tail of large log files', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'bbt-diagnostics-'));
+    const projectDir = join(rootDir, 'projects', 'northvale');
+    await mkdir(join(projectDir, 'logs'), { recursive: true });
+    await writeFile(join(projectDir, 'logs', 'latest.log'), `${'old-start'.padEnd(10_000, 'x')}${'recent-tail'.padStart(90_000, 'y')}`);
+
+    const result = await writeLaunchDiagnostics({
+      rootDir,
+      projectId: 'northvale',
+      runtime: {
+        minecraftVersion: '1.20.1',
+        loaderVersion: '47.4.20'
+      },
+      now: () => new Date('2026-07-06T00:00:00.000Z')
+    });
+
+    const diagnostic = await readFile(result.filePath, 'utf8');
+    expect(diagnostic).not.toContain('old-start');
+    expect(diagnostic).toContain('recent-tail');
+  });
 });

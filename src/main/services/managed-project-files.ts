@@ -5,6 +5,19 @@ import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.j
 
 export const launcherOwnedProjectRoots = new Set(['mods', 'config', 'resourcepacks']);
 export const launcherManagedProjectRoots = new Set([...launcherOwnedProjectRoots, 'shaderpacks']);
+const forbiddenProjectPathSegments = new Set([
+  'saves',
+  'logs',
+  'screenshots',
+  'crash-reports',
+  'cache',
+  'caches',
+  'tmp',
+  'temp',
+  'temporary',
+  'dev'
+]);
+const forbiddenProjectFilePattern = /(^|[/\\])(?:options\.txt|.*(?:\.bak|backup|token|session|account).*)$/i;
 
 export function isLauncherOwnedProjectPath(filePath: string): boolean {
   const safePath = normalizeProjectFilePath(filePath);
@@ -14,6 +27,16 @@ export function isLauncherOwnedProjectPath(filePath: string): boolean {
 export function isLauncherManagedProjectPath(filePath: string): boolean {
   const safePath = normalizeProjectFilePath(filePath);
   return launcherManagedProjectRoots.has(safePath.split('/')[0]);
+}
+
+export function isForbiddenProjectManifestPath(filePath: string): boolean {
+  const safePath = normalizeProjectFilePath(filePath);
+  const segments = safePath.split('/');
+  return segments.some((segment) => {
+    const lowerSegment = segment.toLowerCase();
+    return forbiddenProjectPathSegments.has(lowerSegment) || lowerSegment.startsWith('_disabled_');
+  })
+    || forbiddenProjectFilePattern.test(safePath);
 }
 
 export async function collectLocalOwnedFiles(projectDir: string): Promise<string[]> {

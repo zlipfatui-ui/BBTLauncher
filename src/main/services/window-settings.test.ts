@@ -4,12 +4,9 @@ import { applyDisplaySettingsToWindow, createBrowserWindowOptions } from './wind
 describe('window display settings', () => {
   it('builds startup window options from saved settings', () => {
     expect(createBrowserWindowOptions({
-      appDirectory: 'D:/NorthvaleData',
       width: 1600,
       height: 900,
-      fullscreen: true,
-      memoryMb: 8192,
-      selectedProject: 'northvale'
+      fullscreen: true
     })).toEqual({
       width: 1600,
       height: 900,

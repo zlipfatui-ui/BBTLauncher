@@ -13,6 +13,7 @@ export interface ProjectLaunchManagerOptions {
   onStateChange?: (state: ProjectLaunchState) => void;
   watchIntervalMs?: number;
   diagnosticDelayMs?: number;
+  stopDiagnosticTimeoutMs?: number;
 }
 
 export interface ProjectLaunchManager {
@@ -47,6 +48,7 @@ export function createProjectLaunchManager(options: ProjectLaunchManagerOptions 
   const killProcessTree = options.killProcessTree || defaultKillProcessTree;
   const watchIntervalMs = options.watchIntervalMs ?? 5000;
   const diagnosticDelayMs = options.diagnosticDelayMs ?? 120000;
+  const stopDiagnosticTimeoutMs = options.stopDiagnosticTimeoutMs ?? 5000;
   let state: ProjectLaunchState = { status: 'idle' };
   let watchTimer: ReturnType<typeof setInterval> | undefined;
   let diagnosticTimer: ReturnType<typeof setTimeout> | undefined;
@@ -80,7 +82,7 @@ export function createProjectLaunchManager(options: ProjectLaunchManagerOptions 
     if (watchTimer) clearInterval(watchTimer);
     watchTimer = setInterval(() => {
       void isProcessRunning(pid).then((running) => {
-        if (!running && state.status !== 'idle') {
+        if (!running && state.status !== 'idle' && state.pid === pid) {
           clearTimers();
           emit({ status: 'idle' });
         }
@@ -122,12 +124,38 @@ export function createProjectLaunchManager(options: ProjectLaunchManagerOptions 
       if (state.projectId && state.projectId !== projectId) return state;
       if (state.status === 'idle') return state;
       const pid = state.pid;
+      const previousState = state;
       emit({ ...state, status: 'stopping' });
-      if (pid) {
-        await options.collectDiagnostics?.(state).catch(() => undefined);
-        await killProcessTree(pid);
+      let killFailed = false;
+      let stillRunning = false;
+      try {
+        if (pid) {
+          const diagnostics = options.collectDiagnostics?.(state).catch(() => undefined);
+          if (diagnostics) {
+            await Promise.race([
+              diagnostics,
+              new Promise<void>((resolve) => setTimeout(resolve, stopDiagnosticTimeoutMs))
+            ]);
+          }
+          await killProcessTree(pid).catch(() => {
+            killFailed = true;
+          });
+          stillRunning = await isProcessRunning(pid).catch(() => killFailed);
+        }
+      } finally {
+        clearTimers();
       }
-      clearTimers();
+      if (pid && stillRunning) {
+        const runningState: ProjectLaunchState = {
+          status: 'running',
+          projectId: previousState.projectId,
+          pid,
+          startedAt: previousState.startedAt
+        };
+        watchProcess(pid);
+        scheduleDiagnostics();
+        return emit(runningState);
+      }
       return emit({ status: 'idle' });
     }
   };

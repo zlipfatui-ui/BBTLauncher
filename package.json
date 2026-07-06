@@ -61,7 +61,7 @@
         "provider": "github",
         "owner": "zlipfatui-ui",
         "repo": "BBTLauncher",
-        "releaseType": "draft"
+        "releaseType": "release"
       }
     ],
     "win": {
@@ -82,10 +82,14 @@
       ]
     },
     "nsis": {
+      "artifactName": "BeforeBedtime-Launcher-Setup-${version}.${ext}",
       "oneClick": false,
       "perMachine": false,
       "allowElevation": true,
       "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "BeforeBedtime-Launcher-Portable-${version}.${ext}"
     }
   }
 }

@@ -45,6 +45,35 @@ describe('manifest client', () => {
     expect(() => validateLauncherManifest(unsafe)).toThrow(/unsafe/i);
   });
 
+  it('rejects manifest files outside launcher-managed pack roots', () => {
+    const unsafe = structuredClone(manifest);
+    unsafe.projects[0].files[0].path = 'saves/world/level.dat';
+
+    expect(() => validateLauncherManifest(unsafe)).toThrow(/not launcher-managed/i);
+  });
+
+  it('allows official shaderpacks but rejects backup and account-like files', () => {
+    const withShader = structuredClone(manifest);
+    withShader.projects[0].files[0].path = 'shaderpacks/ComplementaryReimagined_r5.8.1.zip';
+
+    expect(validateLauncherManifest(withShader).projects[0].files[0].path).toBe('shaderpacks/ComplementaryReimagined_r5.8.1.zip');
+
+    const withBackup = structuredClone(manifest);
+    withBackup.projects[0].files[0].path = 'config/client.toml.bak';
+    expect(() => validateLauncherManifest(withBackup)).toThrow(/forbidden/i);
+
+    const withAccount = structuredClone(manifest);
+    withAccount.projects[0].files[0].path = 'config/account-token.json';
+    expect(() => validateLauncherManifest(withAccount)).toThrow(/forbidden/i);
+  });
+
+  it('rejects disabled folders regardless of case', () => {
+    const unsafe = structuredClone(manifest);
+    unsafe.projects[0].files[0].path = 'mods/_Disabled_old/test.jar';
+
+    expect(() => validateLauncherManifest(unsafe)).toThrow(/forbidden/i);
+  });
+
   it('fetches the manifest from /api/launcher/manifest', async () => {
     const requested: string[] = [];
     const client = createManifestClient({
