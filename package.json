@@ -1,0 +1,91 @@
+{
+  "name": "bbt-launcher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BeforeBedtime Northvale Minecraft launcher.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zlipfatui-ui/BBTLauncher.git"
+  },
+  "type": "module",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "dev:electron": "npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "build": "tsc -p tsconfig.electron.json && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "release:win": "npm run build && electron-builder --win --x64",
+    "publish:win": "npm run build && electron-builder --win --x64 --publish always",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^3.6.3",
+    "@xmcl/core": "^2.7.3",
+    "@xmcl/installer": "^2.7.3",
+    "electron-updater": "^6.8.9",
+    "extract-zip": "^2.0.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^5.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^37.10.3",
+    "electron-builder": "^26.15.3",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  },
+  "build": {
+    "appId": "com.beforebedtime.launcher",
+    "productName": "BeforeBedtime Launcher",
+    "directories": {
+      "output": "../../BBTLauncher-release"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/renderer/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "zlipfatui-ui",
+        "repo": "BBTLauncher",
+        "releaseType": "draft"
+      }
+    ],
+    "win": {
+      "icon": "public/assets/images/logos/BBT.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

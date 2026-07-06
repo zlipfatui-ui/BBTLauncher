@@ -1,0 +1,42 @@
+node_modules/
+dist/
+dist-electron/
+release/
+out/
+build/
+.superpowers/
+.worktrees/
+worktrees/
+coverage/
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Electron-builder output lives outside this repo by default, but keep local
+# release folders out if the output path changes.
+BBTLauncher-release/
+*-unpacked/
+*.blockmap
+latest.yml
+builder-debug.yml
+
+# Runtime/player data must never be committed.
+.beforebedtime-launcher/
+runtimes/
+minecraft/
+projects/
+auth/
+diagnostics/
+logs/
+saves/
+screenshots/
+shaderpacks/
+crash-reports/
+options.txt
+*.token
+*.session
+*.account
+msal-cache.bin
+legacy-live-refresh-token.bin

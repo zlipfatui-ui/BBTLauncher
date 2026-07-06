@@ -1,0 +1,860 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  LaunchProgress,
+  LauncherUpdateState,
+  LauncherManifest,
+  LauncherProject,
+  LauncherSettings,
+  ProjectLaunchState,
+  ProjectInstallState,
+  SafeMinecraftProfile
+} from '../shared/types';
+import { NORTHVALE_PROJECT_ID } from '../shared/types';
+import type { LauncherApi } from './launcherApi';
+import { fallbackManifest, getLauncherApi } from './launcherApi';
+import { DiscordIcon, GearIcon, TikTokIcon, YouTubeIcon } from './icons';
+import { resolveRendererAssetUrl } from './assets';
+import './styles.css';
+
+type Screen = 'splash' | 'auth' | 'main';
+type Tab = 'project' | 'shop' | 'settings';
+type SaveState = 'idle' | 'saving' | 'saved' | 'failed';
+type TransitionPhase = 'idle' | 'splash-exit' | 'auth-enter' | 'main-enter';
+type ProjectActionState = ProjectInstallState | 'checking';
+
+const routeSwitchDelayMs = 180;
+const routeTransitionDurationMs = 430;
+const appLogoUrl = resolveRendererAssetUrl('/assets/images/logos/BBT.png');
+
+function formatLaunchProgress(progress: LaunchProgress): string {
+  const labels: Record<LaunchProgress['phase'], string> = {
+    AUTHENTICATING: 'AUTHENTICATING',
+    SYNCING: 'SYNCING',
+    CHECKING_RUNTIME: 'CHECKING RUNTIME',
+    DOWNLOADING_JAVA: 'DOWNLOADING JAVA',
+    INSTALLING_MINECRAFT: 'INSTALLING MINECRAFT',
+    INSTALLING_FORGE: 'INSTALLING FORGE',
+    DOWNLOADING_LIBRARIES: 'DOWNLOADING LIBRARIES',
+    LAUNCHING: 'LAUNCHING'
+  };
+  const percent = typeof progress.percent === 'number' ? ` ${Math.round(progress.percent)}%` : '';
+  return `${labels[progress.phase]}${percent}`;
+}
+
+const socialLinks = [
+  { label: 'YouTube', href: 'https://www.youtube.com/@BeforeBedtimeProject', icon: <YouTubeIcon /> },
+  { label: 'TikTok', href: 'https://www.tiktok.com/@beforebedtimeproject', icon: <TikTokIcon /> },
+  { label: 'Discord', href: 'https://discord.gg/V5KaAfDpzw', icon: <DiscordIcon /> }
+];
+
+const resolutionPresets = [
+  { label: '1280 x 720', width: 1280, height: 720 },
+  { label: '1366 x 768', width: 1366, height: 768 },
+  { label: '1600 x 900', width: 1600, height: 900 },
+  { label: '1920 x 1080', width: 1920, height: 1080 },
+  { label: '2560 x 1440', width: 2560, height: 1440 }
+];
+
+const splashStars = Array.from({ length: 52 }, (_, index) => ({
+  left: `${(index * 37 + 7) % 96}%`,
+  top: `${(index * 53 + 19) % 108}%`,
+  size: `${8 + (index % 5) * 3.2}px`,
+  duration: `${11 + (index % 7) * 1.3}s`,
+  delay: `-${(index * 1.17) % 13}s`,
+  opacity: `${0.34 + (index % 4) * 0.1}`
+}));
+
+function MicrosoftMark() {
+  return (
+    <span className="microsoft-mark" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
+
+function getMinecraftSkinUrl(profile: SafeMinecraftProfile | null): string | null {
+  if (!profile?.id || profile.id === 'Not connected') return null;
+  return `https://mc-heads.net/avatar/${profile.id}/96`;
+}
+
+function getResolutionValue(width: number, height: number): string {
+  return `${width}x${height}`;
+}
+
+function WindowControls({ api }: { api: LauncherApi }) {
+  const [maximized, setMaximized] = useState(false);
+
+  async function toggleMaximize() {
+    if (!api.window) return;
+    setMaximized(await api.window.toggleMaximize());
+  }
+
+  return (
+    <>
+      <div className="window-drag-region" />
+      <div className="window-chrome" aria-label="Window controls">
+        <div className="window-controls">
+          <button type="button" onClick={() => api.window?.minimize()} aria-label="Minimize">
+            <span className="minimize-icon" aria-hidden="true" />
+          </button>
+          <button type="button" onClick={toggleMaximize} aria-label={maximized ? 'Restore' : 'Maximize'}>
+            <span className={`maximize-icon ${maximized ? 'restore' : ''}`} aria-hidden="true" />
+          </button>
+          <button className="close-control" type="button" onClick={() => api.window?.close()} aria-label="Close">
+            <span className="close-icon" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Splash({ onStart, api, isExiting }: { onStart: () => void; api: LauncherApi; isExiting: boolean }) {
+  return (
+    <section className={`screen splash ${isExiting ? 'is-exiting' : ''}`}>
+      <div className="splash-stars" aria-hidden="true">
+        {splashStars.map((star, index) => (
+          <svg
+            className="star-particle"
+            key={index}
+            viewBox="0 0 24 24"
+            style={{
+              '--star-left': star.left,
+              '--star-top': star.top,
+              '--star-size': star.size,
+              '--star-duration': star.duration,
+              '--star-delay': star.delay,
+              '--star-opacity': star.opacity
+            } as React.CSSProperties}
+          >
+            <path d="M12 0c.62 7.52 4.48 11.38 12 12-7.52.62-11.38 4.48-12 12C11.38 16.48 7.52 12.62 0 12 7.52 11.38 11.38 7.52 12 0Z" />
+          </svg>
+        ))}
+      </div>
+      <div className="splash-inner">
+        <div className="logo-hit">
+          <div className="splash-wordmark">BEFOREBEDTIME</div>
+        </div>
+        <div className="family">FAMILY</div>
+        <button className="start" type="button" onClick={onStart}>
+          <span>Click to start</span>
+          <span className="start-line" aria-hidden="true" />
+        </button>
+        <div className="socials" aria-label="Social links">
+          {socialLinks.map((link) => (
+            <button className="social" key={link.label} type="button" aria-label={link.label} onClick={() => api.shell.openExternal(link.href)}>
+              {link.icon}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AuthScreen({
+  api,
+  onLogin,
+  isEntering
+}: {
+  api: LauncherApi;
+  onLogin: (profile: SafeMinecraftProfile) => void;
+  isEntering: boolean;
+}) {
+  const [accepted, setAccepted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function login() {
+    if (!accepted || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.auth.loginMicrosoft();
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      onLogin(result.value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className={`screen auth ${isEntering ? 'route-enter' : ''}`}>
+      <svg className="auth-waves" viewBox="0 0 1200 700" preserveAspectRatio="none" aria-hidden="true">
+        <path className="wave wave-top" d="M-50 180 C 260 105, 455 130, 650 200 S 980 245, 1250 130" />
+        <path className="wave wave-bottom" d="M-50 520 C 240 465, 405 520, 620 470 S 960 430, 1250 510" />
+      </svg>
+      <div className="auth-inner">
+        <button className="auth-button" type="button" disabled={!accepted || loading} onClick={login}>
+          <MicrosoftMark />
+          <span className="auth-arrow" aria-hidden="true">{'->'}</span>
+          <span className="auth-text">{loading ? 'Logging in' : 'Login to Microsoft'}</span>
+        </button>
+        <label className="terms">
+          <input
+            className="terms-input"
+            type="checkbox"
+            checked={accepted}
+            onChange={(event) => setAccepted(event.target.checked)}
+            aria-label="Accept the Terms of Service and Privacy Policy"
+          />
+          <span className="terms-box" aria-hidden="true">
+            <svg viewBox="0 0 16 16">
+              <path d="M3.2 8.4 6.5 11.6 12.9 4.7" />
+            </svg>
+          </span>
+          <span>
+            I accept the{' '}
+            <button type="button" className="link-button" onClick={() => api.shell.openExternal('https://beforebedtime.local/terms')}>
+              Terms of Service
+            </button>{' '}
+            and{' '}
+            <button type="button" className="link-button" onClick={() => api.shell.openExternal('https://beforebedtime.local/privacy')}>
+              Privacy Policy
+            </button>
+          </span>
+        </label>
+        {error ? <div className="auth-error">{error}</div> : null}
+      </div>
+    </section>
+  );
+}
+
+function updateActionLabel(updateState: LauncherUpdateState): string | null {
+  if (updateState.status === 'available') return 'UPDATE LAUNCHER';
+  if (updateState.status === 'downloading') return `${Math.round(updateState.percent || 0)}%`;
+  if (updateState.status === 'downloaded') return 'RESTART TO UPDATE';
+  return null;
+}
+
+function Topbar({
+  activeTab,
+  setActiveTab,
+  updateState,
+  onUpdateAction
+}: {
+  activeTab: Tab;
+  setActiveTab: (tab: Tab) => void;
+  updateState: LauncherUpdateState;
+  onUpdateAction: () => void;
+}) {
+  const label = updateActionLabel(updateState);
+  return (
+    <header className="topbar">
+      <div className="brand">
+        <img className="brand-logo" src={appLogoUrl} alt="" aria-hidden="true" data-testid="brand-logo" />
+        <div className="brand-name">
+          <strong>BeforeBedtime</strong>
+          <span>Launcher</span>
+        </div>
+      </div>
+      <nav className="tabs" aria-label="Main tabs">
+        {(['project', 'shop', 'settings'] as const).map((tab) => (
+          <button className={`tab ${activeTab === tab ? 'active' : ''}`} key={tab} type="button" onClick={() => setActiveTab(tab)}>
+            {tab === 'project' ? 'Project' : tab === 'shop' ? 'Shop' : 'Settings'}
+          </button>
+        ))}
+      </nav>
+      <div className="topbar-spacer">
+        {label ? (
+          <button
+            className="update-button"
+            type="button"
+            disabled={updateState.status === 'downloading'}
+            onClick={onUpdateAction}
+          >
+            {label}
+          </button>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+function ProjectPanel({
+  api,
+  manifest,
+  setActiveTab
+}: {
+  api: LauncherApi;
+  manifest: LauncherManifest;
+  setActiveTab: (tab: Tab) => void;
+}) {
+  const project = manifest.projects[0];
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [projectState, setProjectState] = useState<ProjectActionState>('checking');
+  const [launchState, setLaunchState] = useState<ProjectLaunchState>({ status: 'idle' });
+  const [status, setStatus] = useState('CHECKING');
+  const [busy, setBusy] = useState(false);
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
+  const visibleDots = [0, 1, 2];
+  const gallery = project.artwork.gallery.length ? project.artwork.gallery : fallbackManifest.projects[0].artwork.gallery;
+  const activeImage = resolveRendererAssetUrl(gallery[galleryIndex % gallery.length]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setGalleryIndex((index) => (index + 1) % gallery.length), 5200);
+    return () => window.clearInterval(timer);
+  }, [gallery.length]);
+
+  useEffect(
+    () => api.project.onProgress((progress) => {
+      setStatus(formatLaunchProgress(progress));
+      setProgressPercent(
+        typeof progress.percent === 'number'
+          ? Math.max(0, Math.min(100, Math.round(progress.percent)))
+          : null
+      );
+    }),
+    [api]
+  );
+
+  useEffect(() => {
+    let active = true;
+    void api.project.getLaunchState(project.id)
+      .then((state) => {
+        if (active) setLaunchState(state);
+      })
+      .catch(() => undefined);
+    const dispose = api.project.onLaunchState((state) => {
+      if (!state.projectId || state.projectId === project.id || state.status === 'idle') {
+        setLaunchState(state);
+      }
+    });
+    return () => {
+      active = false;
+      dispose();
+    };
+  }, [api, project.id]);
+
+  useEffect(() => {
+    if (launchState.status === 'running') {
+      setBusy(false);
+      setProgressPercent(null);
+      setStatus('RUNNING');
+    } else if (launchState.status === 'stopping') {
+      setBusy(false);
+      setProgressPercent(null);
+      setStatus('STOPPING');
+    } else if (launchState.status === 'idle' && projectState === 'ready' && (status === 'RUNNING' || status === 'STOPPING')) {
+      setBusy(false);
+      setProgressPercent(null);
+      setStatus(project.statusText);
+    }
+  }, [launchState.status, project.statusText, projectState, status]);
+
+  useEffect(() => {
+    let active = true;
+    setProjectState('checking');
+    setStatus('CHECKING');
+    setProgressPercent(null);
+    void api.project.getState(project.id)
+      .then((result) => {
+        if (!active) return;
+        setProjectState(result.state);
+        setStatus(
+          result.state === 'install'
+            ? 'NOT INSTALLED'
+            : result.state === 'update'
+              ? 'UPDATE !'
+              : project.statusText
+        );
+      })
+      .catch(() => {
+        if (active) setStatus('FAILED');
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, manifest.generatedAt, project.id, project.statusText]);
+
+  async function runProjectAction() {
+    if (launchState.status === 'running') {
+      setStatus('STOPPING');
+      await api.project.stop(project.id);
+      return;
+    }
+    if (busy || projectState === 'checking' || launchState.status === 'starting' || launchState.status === 'stopping') return;
+    if (projectState !== 'ready') {
+      setBusy(true);
+      setProgressPercent(0);
+      setStatus(projectState === 'install' ? 'INSTALLING' : 'UPDATING');
+      try {
+        await api.project.sync(project.id);
+        setProjectState('ready');
+        setStatus(project.statusText);
+        setProgressPercent(null);
+      } catch {
+        setStatus('FAILED');
+        setProgressPercent(null);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    setBusy(true);
+    setProgressPercent(null);
+    setStatus('AUTHENTICATING');
+    const result = await api.project.launch(project.id);
+    if (result.ok) {
+      if (!result.value.pid) setStatus(project.statusText);
+    } else {
+      setStatus(result.error.message);
+    }
+    setProgressPercent(null);
+    setBusy(false);
+  }
+
+  const actionLabel = launchState.status === 'running' || launchState.status === 'stopping'
+    ? 'STOP'
+    : projectState === 'checking'
+    ? 'CHECKING'
+    : projectState === 'install'
+    ? 'INSTALL'
+    : projectState === 'update'
+      ? 'UPDATE'
+      : 'PLAY';
+  const actionText = busy ? status : actionLabel;
+  const visibleActionText = busy && progressPercent !== null ? `${progressPercent}%` : actionText;
+  const actionDisabled = launchState.status === 'stopping' || (busy && launchState.status !== 'running') || projectState === 'checking' || launchState.status === 'starting';
+
+  return (
+    <section className="project-panel">
+      <section className="project-board">
+        <div className="project-stage">
+          <img className="project-image" src={activeImage} alt={`${project.title} gallery image ${galleryIndex + 1}`} />
+          <div className="project-title">
+            <span>{project.title}</span>
+          </div>
+          <span className={`version-status ${status === 'FAILED' ? 'failed' : ''}`}>{status}</span>
+        </div>
+        <div className="project-actions">
+          <div className="project-strip" aria-label="Project selector">
+            <button className="project-arrow" type="button" aria-label="Previous project">‹</button>
+            <button className="project-pill" type="button">
+              <img src={resolveRendererAssetUrl(project.artwork.cover)} alt="" aria-hidden="true" />
+              <span>{project.title}</span>
+            </button>
+            <button className="project-arrow" type="button" aria-label="Next project">›</button>
+          </div>
+          <div className="left-controls">
+            <button className="play-button" type="button" onClick={runProjectAction} disabled={actionDisabled} aria-label={actionText}>
+              {progressPercent !== null ? (
+                <span className="play-progress" aria-hidden="true">
+                  <span className="play-progress-fill" style={{ width: `${progressPercent}%` }} />
+                </span>
+              ) : null}
+              <span className="play-content">
+                <span className="play-icon" aria-hidden="true">
+                  <svg viewBox="0 0 10 10"><path d="M3 2.2v5.6L7.5 5 3 2.2Z" /></svg>
+                </span>
+                <span className="play-label">{visibleActionText}</span>
+              </span>
+            </button>
+            <button className="settings-button" type="button" aria-label="Settings" onClick={() => setActiveTab('settings')}>
+              <GearIcon />
+            </button>
+          </div>
+          <div className="project-dots" aria-label="Gallery image count">
+            {visibleDots.map((dot) => (
+              <button
+                key={dot}
+                className={`project-dot ${dot === galleryIndex % 3 ? 'active' : ''}`}
+                type="button"
+                aria-label={`Gallery image ${dot + 1}`}
+                onClick={() => setGalleryIndex(dot)}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function SettingsPanel({
+  api,
+  profile,
+  settings,
+  setSettings,
+  onLogout
+}: {
+  api: LauncherApi;
+  profile: SafeMinecraftProfile | null;
+  settings: LauncherSettings;
+  setSettings: (settings: LauncherSettings) => void;
+  onLogout: () => void;
+}) {
+  const account = profile || { id: 'Not connected', name: 'Minecraft Name', avatarInitial: 'B', provider: 'microsoft' as const };
+  const skinUrl = getMinecraftSkinUrl(profile);
+  const [skinFailed, setSkinFailed] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [resolutionOpen, setResolutionOpen] = useState(false);
+  const resolutionPickerRef = useRef<HTMLDivElement>(null);
+  const showSkin = Boolean(skinUrl && !skinFailed);
+  const resolutionValue = getResolutionValue(settings.width, settings.height);
+  const hasPresetResolution = resolutionPresets.some((preset) => getResolutionValue(preset.width, preset.height) === resolutionValue);
+  const resolutionOptions = [
+    ...(!hasPresetResolution ? [{ label: `${settings.width} x ${settings.height} Current`, value: resolutionValue }] : []),
+    ...resolutionPresets.map((preset) => ({
+      label: preset.label,
+      value: getResolutionValue(preset.width, preset.height)
+    }))
+  ];
+  const resolutionLabel = resolutionOptions.find((option) => option.value === resolutionValue)?.label || `${settings.width} x ${settings.height}`;
+
+  useEffect(() => {
+    setSkinFailed(false);
+  }, [skinUrl]);
+
+  useEffect(() => {
+    if (!resolutionOpen) return undefined;
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (resolutionPickerRef.current?.contains(event.target as Node)) return;
+      setResolutionOpen(false);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer, true);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true);
+  }, [resolutionOpen]);
+
+  async function save() {
+    setSaveState('saving');
+    try {
+      const savedSettings = await api.settings.save(settings);
+      await api.window?.applyDisplaySettings?.({
+        width: savedSettings.width,
+        height: savedSettings.height,
+        fullscreen: savedSettings.fullscreen
+      });
+      setSettings(savedSettings);
+      setSaveState('saved');
+      window.setTimeout(() => setSaveState('idle'), 1800);
+    } catch {
+      setSaveState('failed');
+    }
+  }
+
+  async function logout() {
+    const result = await api.auth.logout();
+    if (result.ok) onLogout();
+  }
+
+  function updateFullscreen(fullscreen: boolean) {
+    setSettings({ ...settings, fullscreen });
+  }
+
+  async function browseAppDirectory() {
+    const selectedPath = await api.settings.selectAppDirectory(settings.appDirectory);
+    if (!selectedPath) return;
+    setSettings({ ...settings, appDirectory: selectedPath });
+  }
+
+  function updateResolution(value: string) {
+    const [width, height] = value.split('x').map((part) => Number(part));
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+    setSettings({ ...settings, width, height });
+  }
+
+  function selectResolution(value: string) {
+    updateResolution(value);
+    setResolutionOpen(false);
+  }
+
+  return (
+    <section className="settings-panel">
+      <div className="settings-layout">
+        <section className="settings-card account-card">
+          <div className="settings-label">Account</div>
+          <div className="account-row">
+            <div className={`minecraft-avatar ${showSkin ? 'has-skin' : ''}`}>
+              {showSkin && skinUrl ? (
+                <img src={skinUrl} alt={`${account.name} Minecraft skin`} onError={() => setSkinFailed(true)} />
+              ) : (
+                <span>{account.avatarInitial}</span>
+              )}
+            </div>
+            <div>
+              <div className="field-caption">Minecraft Name</div>
+              <div className="minecraft-name">{account.name}</div>
+              <div className="minecraft-uuid">{account.id}</div>
+            </div>
+          </div>
+          <div className="account-meta">
+            <span className="status-dot" aria-hidden="true" />
+            Microsoft Connected
+          </div>
+        </section>
+        <section className="settings-card directory-card">
+          <div className="settings-label">App Directory</div>
+          <div className="directory-control">
+            <input
+              className="settings-input directory-input"
+              aria-label="App Directory"
+              value={settings.appDirectory}
+              readOnly
+            />
+            <button className="browse-button" type="button" onClick={browseAppDirectory}>Browse</button>
+          </div>
+        </section>
+        <section className="settings-card display-card">
+          <div className="settings-label">Resolution</div>
+          <div className="resolution-row">
+            <div className="resolution-picker" ref={resolutionPickerRef}>
+              <button
+                className="settings-input resolution-trigger"
+                type="button"
+                role="combobox"
+                aria-label="Resolution"
+                aria-expanded={resolutionOpen}
+                aria-controls="resolution-options"
+                aria-haspopup="listbox"
+                onClick={() => setResolutionOpen((open) => !open)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setResolutionOpen(false);
+                }}
+              >
+                <span>{resolutionLabel}</span>
+                <span className={`resolution-chevron ${resolutionOpen ? 'open' : ''}`} aria-hidden="true" />
+              </button>
+              {resolutionOpen ? (
+                <div className="resolution-menu" id="resolution-options" role="listbox" aria-label="Resolution options">
+                  {resolutionOptions.map((option) => (
+                    <button
+                      className={`resolution-option ${option.value === resolutionValue ? 'selected' : ''}`}
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={option.value === resolutionValue}
+                      onClick={() => selectResolution(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <label className="fullscreen-control">
+              <span>Fullscreen</span>
+              <input type="checkbox" checked={settings.fullscreen} onChange={(event) => updateFullscreen(event.target.checked)} />
+            </label>
+          </div>
+        </section>
+        <section className="settings-card memory-card">
+          <div className="memory-head">
+            <span className="settings-label">Memory</span>
+            <span>{settings.memoryMb} MB</span>
+          </div>
+          <input
+            className="memory-range"
+            type="range"
+            min={1024}
+            max={32601}
+            step={512}
+            value={settings.memoryMb}
+            onChange={(event) => setSettings({ ...settings, memoryMb: Number(event.target.value) })}
+          />
+        </section>
+        <section className="settings-card links-card">
+          <div className="settings-label">Links</div>
+          <div className="support-social-list">
+            {socialLinks.map((link) => (
+              <button key={link.label} className="support-social" type="button" onClick={() => api.shell.openExternal(link.href)}>
+                {link.icon}
+                <span>{link.label}</span>
+              </button>
+            ))}
+          </div>
+          <button className="logout-button" type="button" onClick={logout}>
+            <span aria-hidden="true">↩</span>
+            Logout
+          </button>
+        </section>
+        <div className="settings-save-row">
+          <span className={`save-status ${saveState === 'failed' ? 'failed' : ''}`} role="status">
+            {saveState === 'saved' ? 'Saved' : saveState === 'failed' ? 'Save failed' : ''}
+          </span>
+          <button className="save-button" type="button" onClick={save} disabled={saveState === 'saving'}>
+            {saveState === 'saving' ? 'Saving' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MainShell({
+  api,
+  profile,
+  onLogout,
+  isEntering
+}: {
+  api: LauncherApi;
+  profile: SafeMinecraftProfile | null;
+  onLogout: () => void;
+  isEntering: boolean;
+}) {
+  const [activeTab, setActiveTab] = useState<Tab>('project');
+  const [updateState, setUpdateState] = useState<LauncherUpdateState>({ status: 'idle' });
+  const [manifest, setManifest] = useState<LauncherManifest>(fallbackManifest);
+  const [settings, setSettings] = useState<LauncherSettings>({
+    appDirectory: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
+    width: 1280,
+    height: 720,
+    fullscreen: false,
+    memoryMb: 8192,
+    selectedProject: NORTHVALE_PROJECT_ID
+  });
+
+  useEffect(() => {
+    void api.manifest.refresh().then(setManifest).catch(() => setManifest(fallbackManifest));
+    void api.settings.load().then(setSettings);
+  }, [api]);
+
+  useEffect(() => {
+    let active = true;
+    void api.updater.getState().then((state) => {
+      if (active) setUpdateState(state);
+    }).catch(() => undefined);
+    const dispose = api.updater.onState(setUpdateState);
+    return () => {
+      active = false;
+      dispose();
+    };
+  }, [api]);
+
+  async function runUpdateAction() {
+    if (updateState.status === 'available') {
+      setUpdateState(await api.updater.download());
+    } else if (updateState.status === 'downloaded') {
+      await api.updater.quitAndInstall();
+    }
+  }
+
+  return (
+    <section className={`screen main ${isEntering ? 'route-enter' : ''}`}>
+      <div className="launcher-shell">
+        <Topbar activeTab={activeTab} setActiveTab={setActiveTab} updateState={updateState} onUpdateAction={runUpdateAction} />
+        <main className="launcher-content">
+          {activeTab === 'project' ? <ProjectPanel api={api} manifest={manifest} setActiveTab={setActiveTab} /> : null}
+          {activeTab === 'shop' ? <section className="shop-panel" aria-label="Shop" /> : null}
+          {activeTab === 'settings' ? (
+            <SettingsPanel
+              api={api}
+              profile={profile}
+              settings={settings}
+              setSettings={setSettings}
+              onLogout={onLogout}
+            />
+          ) : null}
+        </main>
+      </div>
+    </section>
+  );
+}
+
+export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
+  const [screen, setScreen] = useState<Screen>('splash');
+  const [profile, setProfile] = useState<SafeMinecraftProfile | null>(null);
+  const [transitionPhase, setTransitionPhase] = useState<TransitionPhase>('idle');
+  const transitionTimers = useRef<number[]>([]);
+  const memoApi = useMemo(() => api, [api]);
+  const restoreSession = useMemo(() => memoApi.auth.getState(), [memoApi]);
+
+  function clearTransitionTimers() {
+    transitionTimers.current.forEach((timer) => window.clearTimeout(timer));
+    transitionTimers.current = [];
+  }
+
+  function scheduleTransition(callback: () => void, delay: number) {
+    const timer = window.setTimeout(callback, delay);
+    transitionTimers.current.push(timer);
+  }
+
+  useEffect(() => {
+    void restoreSession.then((result) => {
+      if (result.ok && result.value.profile) setProfile(result.value.profile);
+    });
+  }, [restoreSession]);
+
+  useEffect(() => () => clearTransitionTimers(), []);
+
+  function startFromSplash() {
+    if (transitionPhase !== 'idle') return;
+    clearTransitionTimers();
+    setTransitionPhase('splash-exit');
+
+    void restoreSession.then((result) => {
+      const nextScreen: Screen = result.ok && result.value.profile ? 'main' : 'auth';
+      if (result.ok && result.value.profile) {
+        setProfile(result.value.profile);
+      }
+
+      scheduleTransition(() => {
+        setScreen(nextScreen);
+        setTransitionPhase(nextScreen === 'main' ? 'main-enter' : 'auth-enter');
+      }, routeSwitchDelayMs);
+
+      scheduleTransition(() => {
+        setTransitionPhase('idle');
+      }, routeTransitionDurationMs);
+    });
+  }
+
+  function enterMain(nextProfile: SafeMinecraftProfile) {
+    clearTransitionTimers();
+    setProfile(nextProfile);
+    setScreen('main');
+    setTransitionPhase('main-enter');
+    scheduleTransition(() => setTransitionPhase('idle'), 360);
+  }
+
+  let content;
+  if (screen === 'splash') {
+    content = (
+      <Splash
+        api={memoApi}
+        isExiting={transitionPhase === 'splash-exit'}
+        onStart={startFromSplash}
+      />
+    );
+  } else if (screen === 'auth') {
+    content = (
+      <AuthScreen
+        api={memoApi}
+        isEntering={transitionPhase === 'auth-enter'}
+        onLogin={enterMain}
+      />
+    );
+  } else {
+    content = (
+      <MainShell
+        api={memoApi}
+        profile={profile}
+        isEntering={transitionPhase === 'main-enter'}
+        onLogout={() => {
+          clearTransitionTimers();
+          setProfile(null);
+          setScreen('auth');
+          setTransitionPhase('idle');
+        }}
+      />
+    );
+  }
+
+  return (
+    <>
+      <WindowControls api={memoApi} />
+      {content}
+    </>
+  );
+}
