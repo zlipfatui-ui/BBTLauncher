@@ -8,7 +8,7 @@ import {
   isIgnoredPlayerLocalProjectManifestPath,
   isLauncherManagedProjectPath
 } from './managed-project-files.js';
-import { effectiveSyncMode, readManagedProjectIndex } from './managed-project-index.js';
+import { effectiveManagedIndexSyncMode, effectiveSyncMode, readManagedProjectIndex } from './managed-project-index.js';
 import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
 
 interface ManagedManifestFile {
@@ -82,7 +82,7 @@ export async function inspectProjectState(
   const managedIndex = await readManagedProjectIndex(rootDir, projectId);
   let stale = 0;
   for (const file of managedIndex.files) {
-    if (file.syncMode !== 'required') continue;
+    if (effectiveManagedIndexSyncMode(rootDir, file) !== 'required') continue;
     if (requiredManifestPaths.has(file.path)) continue;
     if (existsSync(assertInsideDirectory(projectDir, join(projectDir, file.path)))) {
       stale += 1;

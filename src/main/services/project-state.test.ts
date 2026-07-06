@@ -260,4 +260,28 @@ describe('project state inspection', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('does not report old required FancyMenu index entries as stale for pack authors', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-author-index-'));
+    try {
+      const fancyMenu = join(root, 'projects', 'northvale', 'config', 'fancymenu');
+      await mkdir(fancyMenu, { recursive: true });
+      await writeFile(join(fancyMenu, 'customization.txt'), 'local menu work');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+      await writeManagedIndex(root, 'northvale', [
+        { path: 'config/fancymenu/customization.txt', syncMode: 'required' }
+      ]);
+
+      const manifest = manifestWithFile('config/fancymenu/customization.txt', 'official menu', 'required');
+
+      await expect(inspectProjectState(root, 'northvale', manifest)).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -10,6 +10,7 @@ import {
   isLauncherManagedProjectPath
 } from './managed-project-files.js';
 import {
+  effectiveManagedIndexSyncMode,
   effectiveSyncMode,
   readManagedProjectIndex,
   type ManagedProjectIndex,
@@ -92,7 +93,7 @@ async function removeStaleManagedRequiredFiles(
   );
 
   for (const localFile of managedIndex.files) {
-    if (localFile.syncMode === 'required' && !expectedFiles.has(localFile.path)) {
+    if (effectiveManagedIndexSyncMode(rootDir, localFile) === 'required' && !expectedFiles.has(localFile.path)) {
       await rm(assertInsideDirectory(projectDir, join(projectDir, localFile.path)), { force: true });
     }
   }

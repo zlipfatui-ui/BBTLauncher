@@ -38,6 +38,11 @@ export function effectiveSyncMode(rootDir: string, file: LauncherFile): Launcher
   return declaredSyncMode(file);
 }
 
+export function effectiveManagedIndexSyncMode(rootDir: string, file: ManagedProjectFileRecord): LauncherFileSyncMode {
+  if (isPackAuthorMode(rootDir) && isFancyMenuPath(file.path)) return 'seed';
+  return file.syncMode === 'seed' ? 'seed' : 'required';
+}
+
 export async function readManagedProjectIndex(rootDir: string, projectId: string): Promise<ManagedProjectIndex> {
   const filePath = indexPath(rootDir, projectId);
   if (!existsSync(filePath)) return { version: 1, files: [] };

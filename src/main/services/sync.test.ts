@@ -378,6 +378,38 @@ describe('project sync', () => {
     }
   });
 
+  it('does not remove old required FancyMenu index entries for pack authors', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-author-index-'));
+    const projectRoot = join(root, 'projects', 'northvale');
+
+    try {
+      await mkdir(join(projectRoot, 'config', 'fancymenu'), { recursive: true });
+      await writeFile(join(projectRoot, 'config', 'fancymenu', 'customization.txt'), 'local menu work');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+      await writeManagedIndex(root, 'northvale', [
+        { path: 'config/fancymenu/customization.txt', syncMode: 'required' }
+      ]);
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'northvale',
+        manifest: makeFileManifest('config/fancymenu/customization.txt', 'official menu', 'required'),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('author FancyMenu changes should not be downloaded');
+        }
+      });
+
+      expect(result.downloaded).toBe(0);
+      expect(result.skipped).toBe(1);
+      await expect(readFile(join(projectRoot, 'config', 'fancymenu', 'customization.txt'), 'utf8')).resolves.toBe(
+        'local menu work'
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('refuses to sync forbidden manifest paths even if validation was bypassed', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-'));
     const manifest = makeManifest('save data');
