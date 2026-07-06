@@ -45,6 +45,8 @@ describe('Electron production build config', () => {
       { target: 'portable', arch: ['x64'] }
     ]);
     expect(packageJson.build.nsis.artifactName).toBe('BeforeBedtime-Launcher-Setup-${version}.${ext}');
+    expect(packageJson.build.nsis.oneClick).toBe(true);
+    expect(packageJson.build.nsis.allowToChangeInstallationDirectory).toBe(false);
     expect(packageJson.build.portable.artifactName).toBe('BeforeBedtime-Launcher-Portable-${version}.${ext}');
   });
 

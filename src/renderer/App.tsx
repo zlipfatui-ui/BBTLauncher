@@ -229,7 +229,7 @@ function AuthScreen({
 }
 
 function updateActionLabel(updateState: LauncherUpdateState): string | null {
-  if (updateState.status === 'available') return 'UPDATE LAUNCHER';
+  if (updateState.status === 'available') return 'DOWNLOADING UPDATE';
   if (updateState.status === 'downloading') return `${Math.round(updateState.percent || 0)}%`;
   if (updateState.status === 'downloaded') return 'RESTART TO UPDATE';
   return null;
@@ -268,7 +268,7 @@ function Topbar({
           <button
             className="update-button"
             type="button"
-            disabled={updateState.status === 'downloading'}
+            disabled={updateState.status === 'available' || updateState.status === 'downloading'}
             onClick={onUpdateAction}
           >
             {label}
@@ -733,9 +733,7 @@ function MainShell({
   }, [api]);
 
   async function runUpdateAction() {
-    if (updateState.status === 'available') {
-      setUpdateState(await api.updater.download());
-    } else if (updateState.status === 'downloaded') {
+    if (updateState.status === 'downloaded') {
       await api.updater.quitAndInstall();
     }
   }

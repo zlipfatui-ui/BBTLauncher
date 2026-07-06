@@ -33,7 +33,7 @@ function messageFromError(error: unknown): string {
 }
 
 export function createLauncherUpdateService({ updater, onStateChange }: LauncherUpdateServiceOptions): LauncherUpdateService {
-  updater.autoDownload = false;
+  updater.autoDownload = true;
   let state: LauncherUpdateState = { status: 'idle' };
 
   function emit(next: LauncherUpdateState): LauncherUpdateState {

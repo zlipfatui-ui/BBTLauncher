@@ -12,13 +12,13 @@ function makeUpdater() {
 }
 
 describe('launcher update service', () => {
-  it('checks GitHub update feed without auto-downloading', async () => {
+  it('checks GitHub update feed and lets electron-updater auto-download available releases', async () => {
     const updater = makeUpdater();
     const service = createLauncherUpdateService({ updater });
 
     await service.check();
 
-    expect(updater.autoDownload).toBe(false);
+    expect(updater.autoDownload).toBe(true);
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
   });
 

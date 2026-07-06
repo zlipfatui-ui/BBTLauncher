@@ -357,7 +357,7 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: /^play$/i })).toBeInTheDocument();
   });
 
-  it('shows launcher update actions without blocking PLAY when update checks fail', async () => {
+  it('auto-downloads launcher updates without blocking PLAY when update checks fail', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
     let updaterListener: ((state: LauncherUpdateState) => void) | undefined;
@@ -365,10 +365,7 @@ describe('App', () => {
       updaterListener = listener;
       return () => undefined;
     });
-    api.updater.download = vi.fn(async (): Promise<LauncherUpdateState> => {
-      updaterListener?.({ status: 'downloading', version: '0.1.1', percent: 45 });
-      return { status: 'downloading', version: '0.1.1', percent: 45 };
-    });
+    api.updater.download = vi.fn(async (): Promise<LauncherUpdateState> => ({ status: 'downloading', version: '0.1.1', percent: 45 }));
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
@@ -381,7 +378,13 @@ describe('App', () => {
     act(() => {
       updaterListener?.({ status: 'available', version: '0.1.1' });
     });
-    await user.click(await screen.findByRole('button', { name: /update launcher/i }));
+    expect(await screen.findByRole('button', { name: /downloading update/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /update launcher/i })).not.toBeInTheDocument();
+    expect(api.updater.download).not.toHaveBeenCalled();
+
+    act(() => {
+      updaterListener?.({ status: 'downloading', version: '0.1.1', percent: 45 });
+    });
     expect(await screen.findByText('45%')).toBeInTheDocument();
 
     act(() => {
@@ -523,6 +526,7 @@ describe('App', () => {
 
   it('keeps tab hit areas aligned with the visible tab blocks', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
+    const rootRule = css.match(/:root\s*\{([^}]*)\}/s)?.[1] || '';
     const windowChromeRule = css.match(/\.window-chrome\s*\{([^}]*)\}/s)?.[1] || '';
     const controlsRule = css.match(/\.window-controls\s*\{([^}]*)\}/s)?.[1] || '';
     const controlButtonRule = css.match(/\.window-controls button\s*\{([^}]*)\}/s)?.[1] || '';
@@ -533,8 +537,9 @@ describe('App', () => {
     const tabsRule = css.match(/\.tabs\s*\{([^}]*)\}/s)?.[1] || '';
     const tabRule = css.match(/\.tab\s*\{([^}]*)\}/s)?.[1] || '';
 
+    expect(rootRule).toContain('--window-controls-clearance: 118px');
     expect(dragRule).toContain('position: fixed');
-    expect(dragRule).toContain('right: 118px');
+    expect(dragRule).toContain('right: var(--window-controls-clearance)');
     expect(dragRule).toContain('-webkit-app-region: drag');
     expect(windowChromeRule).toContain('width: max-content');
     expect(windowChromeRule).toContain('pointer-events: auto');
@@ -554,6 +559,23 @@ describe('App', () => {
     expect(tabsRule).not.toContain('gap:');
     expect(tabRule).toContain('width: 100%');
     expect(tabRule).toContain('-webkit-app-region: no-drag');
+  });
+
+  it('keeps the launcher update action clear of fixed window controls', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
+    const topbarRule = css.match(/\.topbar\s*\{([^}]*)\}/s)?.[1] || '';
+    const spacerRule = css.match(/\.topbar-spacer\s*\{([^}]*)\}/s)?.[1] || '';
+    const updateButtonRule = css.match(/\.update-button\s*\{([^}]*)\}/s)?.[1] || '';
+
+    expect(topbarRule).toContain('padding: 0 calc(20px + var(--window-controls-clearance)) 0 20px');
+    expect(spacerRule).toContain('position: relative');
+    expect(spacerRule).toContain('z-index: 1001');
+    expect(spacerRule).toContain('justify-content: flex-end');
+    expect(spacerRule).toContain('-webkit-app-region: no-drag');
+    expect(updateButtonRule).toContain('display: inline-flex');
+    expect(updateButtonRule).toContain('align-items: center');
+    expect(updateButtonRule).toContain('justify-content: center');
+    expect(updateButtonRule).toContain('-webkit-app-region: no-drag');
   });
 
   it('keeps the project screen and settings layout deliberately animated', () => {
