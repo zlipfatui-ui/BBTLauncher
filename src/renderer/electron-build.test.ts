@@ -35,7 +35,10 @@ describe('Electron production build config', () => {
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'));
 
     expect(packageJson.devDependencies['electron-builder']).toBeDefined();
-    expect(packageJson.scripts['release:win']).toBe('npm run build && electron-builder --win --x64');
+    expect(packageJson.scripts['clean:release']).toBe('node scripts/clean-release.mjs');
+    expect(packageJson.scripts['release:win']).toBe(
+      'npm run clean:release && npm run build && electron-builder --win --x64'
+    );
     expect(packageJson.build.appId).toBe('com.beforebedtime.launcher');
     expect(packageJson.build.productName).toBe('BeforeBedtime Launcher');
     expect(packageJson.build.directories.output).toBe('../../BBTLauncher-release');
@@ -58,7 +61,9 @@ describe('Electron production build config', () => {
       url: 'https://github.com/zlipfatui-ui/BBTLauncher.git'
     });
     expect(packageJson.dependencies['electron-updater']).toBeDefined();
-    expect(packageJson.scripts['publish:win']).toBe('npm run build && electron-builder --win --x64 --publish always');
+    expect(packageJson.scripts['publish:win']).toBe(
+      'npm run clean:release && npm run build && electron-builder --win --x64 --publish always'
+    );
     expect(packageJson.build.publish).toEqual([
       {
         provider: 'github',
