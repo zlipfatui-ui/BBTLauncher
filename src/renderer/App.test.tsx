@@ -553,12 +553,31 @@ describe('App', () => {
     expect(topbarRule).not.toContain('-webkit-app-region: drag');
     expect(tabsRule).toContain('display: grid');
     expect(tabsRule).toContain('grid-template-columns: repeat(3, 1fr)');
-    expect(tabsRule).toContain('position: relative');
+    expect(tabsRule).toContain('position: absolute');
+    expect(tabsRule).toContain('left: 50%');
+    expect(tabsRule).toContain('transform: translate(-50%, -50%)');
     expect(tabsRule).toContain('z-index: 1001');
     expect(tabsRule).toContain('-webkit-app-region: no-drag');
     expect(tabsRule).not.toContain('gap:');
     expect(tabRule).toContain('width: 100%');
     expect(tabRule).toContain('-webkit-app-region: no-drag');
+  });
+
+  it('centers the main tabs and gallery dots on the same visual axis', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
+    const topbarRule = css.match(/\.topbar\s*\{([^}]*)\}/s)?.[1] || '';
+    const tabsRule = css.match(/\.tabs\s*\{([^}]*)\}/s)?.[1] || '';
+    const projectActionsRule = css.match(/\.project-actions\s*\{([^}]*)\}/s)?.[1] || '';
+    const projectDotsRule = css.match(/\.project-dots\s*\{([^}]*)\}/s)?.[1] || '';
+
+    expect(topbarRule).toContain('position: relative');
+    expect(tabsRule).toContain('position: absolute');
+    expect(tabsRule).toContain('left: 50%');
+    expect(tabsRule).toContain('transform: translate(-50%, -50%)');
+    expect(projectActionsRule).toContain('position: relative');
+    expect(projectDotsRule).toContain('position: absolute');
+    expect(projectDotsRule).toContain('left: 50%');
+    expect(projectDotsRule).toContain('transform: translateX(-50%)');
   });
 
   it('keeps the launcher update action clear of fixed window controls', () => {
@@ -614,11 +633,12 @@ describe('App', () => {
     expect(projectPanelBeforeRule).toContain('animation: project-grid-drift');
     expect(projectStageAfterRule).not.toContain('linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px)');
     expect(projectPanelRule).not.toContain('58px');
+    expect(projectActionsRule).toContain('position: relative');
     expect(projectActionsRule).toContain('grid-template-columns: 1fr auto 1fr');
     expect(leftControlsRule).toContain('grid-column: 3');
     expect(leftControlsRule).toContain('justify-self: end');
-    expect(projectDotsRule).toContain('grid-column: 2');
-    expect(projectDotsRule).toContain('justify-self: center');
+    expect(projectDotsRule).toContain('position: absolute');
+    expect(projectDotsRule).toContain('animation: project-dots-in');
     expect(projectStripRule).toContain('grid-column: 1');
     expect(projectStripRule).toContain('justify-self: start');
     expect(projectStripRule).not.toContain('border-top');
