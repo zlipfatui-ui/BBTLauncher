@@ -40,6 +40,30 @@ function manifestFor(body: string): LauncherManifest {
   };
 }
 
+function manifestWithFile(path: string, body: string, syncMode?: 'required' | 'seed'): LauncherManifest {
+  const manifest = manifestFor('pack');
+  manifest.projects[0].files = [
+    {
+      path,
+      url: `/api/launcher/files/northvale/${path}`,
+      sha256: sha256(body),
+      size: Buffer.byteLength(body),
+      required: true,
+      ...(syncMode ? { syncMode } : {})
+    }
+  ];
+  return manifest;
+}
+
+async function writeManagedIndex(root: string, projectId: string, files: Array<{ path: string; syncMode: 'required' | 'seed' }>) {
+  const metadataDir = join(root, 'metadata', projectId);
+  await mkdir(metadataDir, { recursive: true });
+  await writeFile(
+    join(metadataDir, 'managed-files.json'),
+    `${JSON.stringify({ version: 1, files }, null, 2)}\n`
+  );
+}
+
 function manifestWithShaderpack(modBody: string, shaderBody: string): LauncherManifest {
   const manifest = manifestFor(modBody);
   manifest.projects[0].files.push({
@@ -88,6 +112,10 @@ describe('project state inspection', () => {
       await mkdir(mods, { recursive: true });
       await writeFile(join(mods, 'test.jar'), 'pack');
       await writeFile(join(mods, 'removed.jar'), 'stale');
+      await writeManagedIndex(root, 'northvale', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods/removed.jar', syncMode: 'required' }
+      ]);
 
       await expect(inspectProjectState(root, 'northvale', manifestFor('pack'))).resolves.toMatchObject({
         state: 'update',
@@ -116,33 +144,13 @@ describe('project state inspection', () => {
     }
   });
 
-  it('returns update when an official shaderpack from the manifest is missing', async () => {
+  it('ignores shaderpacks from older manifests and local player shaderpacks', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-state-'));
     try {
       const projectRoot = join(root, 'projects', 'northvale');
       await mkdir(join(projectRoot, 'mods'), { recursive: true });
       await mkdir(join(projectRoot, 'shaderpacks'), { recursive: true });
       await writeFile(join(projectRoot, 'mods', 'test.jar'), 'pack');
-      await writeFile(join(projectRoot, 'shaderpacks', 'custom-player-shader.zip'), 'player shader');
-
-      await expect(inspectProjectState(root, 'northvale', manifestWithShaderpack('pack', 'official shader'))).resolves.toMatchObject({
-        state: 'update',
-        missing: 1,
-        stale: 0
-      });
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it('ignores extra player shaderpacks when official files match', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bbt-state-'));
-    try {
-      const projectRoot = join(root, 'projects', 'northvale');
-      await mkdir(join(projectRoot, 'mods'), { recursive: true });
-      await mkdir(join(projectRoot, 'shaderpacks'), { recursive: true });
-      await writeFile(join(projectRoot, 'mods', 'test.jar'), 'pack');
-      await writeFile(join(projectRoot, 'shaderpacks', 'ComplementaryReimagined_r5.8.1.zip'), 'official shader');
       await writeFile(join(projectRoot, 'shaderpacks', 'custom-player-shader.zip'), 'player shader');
 
       await expect(inspectProjectState(root, 'northvale', manifestWithShaderpack('pack', 'official shader'))).resolves.toEqual({
@@ -156,4 +164,100 @@ describe('project state inspection', () => {
     }
   });
 
+  it('ignores extra player mods, resourcepacks, and shaderpacks', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-'));
+    try {
+      const projectRoot = join(root, 'projects', 'northvale');
+      await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await mkdir(join(projectRoot, 'resourcepacks'), { recursive: true });
+      await mkdir(join(projectRoot, 'shaderpacks'), { recursive: true });
+      await writeFile(join(projectRoot, 'mods', 'test.jar'), 'pack');
+      await writeFile(join(projectRoot, 'mods', 'player-added.jar'), 'player mod');
+      await writeFile(join(projectRoot, 'resourcepacks', 'player-pack.zip'), 'player resourcepack');
+      await writeFile(join(projectRoot, 'shaderpacks', 'custom-player-shader.zip'), 'player shader');
+
+      await expect(inspectProjectState(root, 'northvale', manifestFor('pack'))).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('returns ready when an existing seed config has local player changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-'));
+    try {
+      const config = join(root, 'projects', 'northvale', 'config');
+      await mkdir(config, { recursive: true });
+      await writeFile(join(config, 'oculus.properties'), 'player changed shader settings');
+
+      await expect(
+        inspectProjectState(root, 'northvale', manifestWithFile('config/oculus.properties', 'pack default', 'seed'))
+      ).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('returns update when a seed config is missing', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-'));
+    try {
+      const mods = join(root, 'projects', 'northvale', 'mods');
+      await mkdir(mods, { recursive: true });
+      await writeFile(join(mods, 'test.jar'), 'pack');
+      await mkdir(join(root, 'projects', 'northvale', 'config'), { recursive: true });
+      const manifest = manifestFor('pack');
+      manifest.projects[0].files.push({
+        path: 'config/oculus.properties',
+        url: '/api/launcher/files/northvale/config/oculus.properties',
+        sha256: sha256('pack default'),
+        size: Buffer.byteLength('pack default'),
+        required: true,
+        syncMode: 'seed'
+      });
+
+      await expect(
+        inspectProjectState(root, 'northvale', manifest)
+      ).resolves.toMatchObject({
+        state: 'update',
+        missing: 1
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('enforces FancyMenu for players but lets pack authors keep local changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-'));
+    try {
+      const fancyMenu = join(root, 'projects', 'northvale', 'config', 'fancymenu');
+      await mkdir(fancyMenu, { recursive: true });
+      await writeFile(join(fancyMenu, 'customization.txt'), 'local menu work');
+      const manifest = manifestWithFile('config/fancymenu/customization.txt', 'official menu', 'required');
+
+      await expect(inspectProjectState(root, 'northvale', manifest)).resolves.toMatchObject({
+        state: 'update',
+        changed: 1
+      });
+
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+
+      await expect(inspectProjectState(root, 'northvale', manifest)).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

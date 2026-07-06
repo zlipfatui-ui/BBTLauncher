@@ -31,7 +31,10 @@ export interface LauncherFile {
   sha256: string;
   size: number;
   required: true;
+  syncMode?: LauncherFileSyncMode;
 }
+
+export type LauncherFileSyncMode = 'required' | 'seed';
 
 export interface LauncherSettings {
   appDirectory: string;

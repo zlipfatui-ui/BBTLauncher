@@ -1,14 +1,38 @@
 import { existsSync } from 'node:fs';
 import { lstat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LauncherManifest, ProjectStateResult } from '../../shared/types.js';
+import type { LauncherFile, LauncherFileSyncMode, LauncherManifest, ProjectStateResult } from '../../shared/types.js';
 import { sha256File } from './hash.js';
 import {
-  collectLocalOwnedFiles,
-  isLauncherManagedProjectPath,
-  isLauncherOwnedProjectPath
+  isForbiddenProjectManifestPath,
+  isIgnoredPlayerLocalProjectManifestPath,
+  isLauncherManagedProjectPath
 } from './managed-project-files.js';
+import { effectiveSyncMode, readManagedProjectIndex } from './managed-project-index.js';
 import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
+
+interface ManagedManifestFile {
+  file: LauncherFile;
+  path: string;
+  syncMode: LauncherFileSyncMode;
+}
+
+function managedManifestFiles(rootDir: string, files: LauncherFile[]): ManagedManifestFile[] {
+  const managedFiles: ManagedManifestFile[] = [];
+  for (const file of files) {
+    const safePath = normalizeProjectFilePath(file.path);
+    if (isIgnoredPlayerLocalProjectManifestPath(safePath)) continue;
+    if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
+      throw new Error(`Refusing to inspect unmanaged or forbidden project file: ${safePath}`);
+    }
+    managedFiles.push({
+      file,
+      path: safePath,
+      syncMode: effectiveSyncMode(rootDir, file)
+    });
+  }
+  return managedFiles;
+}
 
 export async function inspectProjectState(
   rootDir: string,
@@ -19,14 +43,12 @@ export async function inspectProjectState(
   if (!project) throw new Error(`Project not found in launcher manifest: ${projectId}`);
 
   const projectDir = join(rootDir, 'projects', projectId);
-  const managedManifestFiles = project.files.filter((file) => isLauncherManagedProjectPath(file.path));
-  const localFiles = existsSync(projectDir) ? await collectLocalOwnedFiles(projectDir) : [];
-  const localFileSet = new Set(localFiles);
+  const projectManifestFiles = managedManifestFiles(rootDir, project.files);
 
-  if (localFiles.length === 0) {
+  if (!existsSync(projectDir)) {
     return {
       state: 'install',
-      missing: managedManifestFiles.length,
+      missing: projectManifestFiles.length,
       changed: 0,
       stale: 0
     };
@@ -34,17 +56,15 @@ export async function inspectProjectState(
 
   let missing = 0;
   let changed = 0;
-  for (const file of managedManifestFiles) {
-    const safePath = normalizeProjectFilePath(file.path);
+  for (const { file, path: safePath, syncMode } of projectManifestFiles) {
     const destination = assertInsideDirectory(projectDir, join(projectDir, safePath));
-    if (isLauncherOwnedProjectPath(safePath)) {
-      localFileSet.delete(safePath);
-    }
 
     if (!existsSync(destination)) {
       missing += 1;
       continue;
     }
+
+    if (syncMode === 'seed') continue;
 
     const fileStat = await lstat(destination);
     if (
@@ -56,7 +76,19 @@ export async function inspectProjectState(
     }
   }
 
-  const stale = localFileSet.size;
+  const requiredManifestPaths = new Set(
+    projectManifestFiles.filter((entry) => entry.syncMode === 'required').map((entry) => entry.path)
+  );
+  const managedIndex = await readManagedProjectIndex(rootDir, projectId);
+  let stale = 0;
+  for (const file of managedIndex.files) {
+    if (file.syncMode !== 'required') continue;
+    if (requiredManifestPaths.has(file.path)) continue;
+    if (existsSync(assertInsideDirectory(projectDir, join(projectDir, file.path)))) {
+      stale += 1;
+    }
+  }
+
   return {
     state: missing > 0 || changed > 0 || stale > 0 ? 'update' : 'ready',
     missing,

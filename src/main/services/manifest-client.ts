@@ -45,8 +45,12 @@ function validateFile(value: unknown): LauncherFile {
   if (value.required !== true) {
     throw new Error(`Invalid launcher manifest: file ${path} must be required in v1.`);
   }
+  const syncMode = value.syncMode;
+  if (syncMode !== undefined && syncMode !== 'required' && syncMode !== 'seed') {
+    throw new Error(`Invalid launcher manifest: file ${path} has an invalid syncMode.`);
+  }
 
-  return { path, url, sha256, size, required: true };
+  return { path, url, sha256, size, required: true, ...(syncMode ? { syncMode } : {}) };
 }
 
 function validateProject(value: unknown): LauncherProject {

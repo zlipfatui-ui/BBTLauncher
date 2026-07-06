@@ -1,15 +1,21 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { LauncherFile, LauncherManifest, SyncResult } from '../../shared/types.js';
+import type { LauncherFile, LauncherFileSyncMode, LauncherManifest, SyncResult } from '../../shared/types.js';
 import { normalizeProjectFilePath, assertInsideDirectory } from './path-safety.js';
 import { sha256Buffer, sha256File } from './hash.js';
 import {
-  collectLocalOwnedFiles,
   isForbiddenProjectManifestPath,
-  isLauncherManagedProjectPath,
-  isLauncherOwnedProjectPath
+  isIgnoredPlayerLocalProjectManifestPath,
+  isLauncherManagedProjectPath
 } from './managed-project-files.js';
+import {
+  effectiveSyncMode,
+  readManagedProjectIndex,
+  type ManagedProjectIndex,
+  type ManagedProjectFileRecord,
+  writeManagedProjectIndex
+} from './managed-project-index.js';
 
 export interface SyncProjectOptions {
   rootDir: string;
@@ -33,26 +39,61 @@ async function isFileClean(destination: string, file: LauncherFile): Promise<boo
   return (await sha256File(destination)) === file.sha256.toUpperCase();
 }
 
-function resolveProjectFile(rootDir: string, projectId: string, filePath: string): string {
-  const safePath = normalizeProjectFilePath(filePath);
+interface SyncManifestFile {
+  file: LauncherFile;
+  path: string;
+  syncMode: LauncherFileSyncMode;
+}
+
+function syncManifestFiles(rootDir: string, files: LauncherFile[]): SyncManifestFile[] {
+  const managedFiles: SyncManifestFile[] = [];
+  for (const file of files) {
+    const safePath = normalizeProjectFilePath(file.path);
+    if (isIgnoredPlayerLocalProjectManifestPath(safePath)) continue;
+    if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
+      throw new Error(`Refusing to sync unmanaged or forbidden project file: ${safePath}`);
+    }
+    managedFiles.push({
+      file,
+      path: safePath,
+      syncMode: effectiveSyncMode(rootDir, file)
+    });
+  }
+  return managedFiles;
+}
+
+function resolveProjectFile(rootDir: string, projectId: string, safePath: string): string {
   if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
     throw new Error(`Refusing to sync unmanaged or forbidden project file: ${safePath}`);
   }
   return assertInsideDirectory(join(rootDir, 'projects', projectId), join(rootDir, 'projects', projectId, safePath));
 }
 
-async function removeStaleLauncherOwnedFiles(rootDir: string, projectId: string, manifestFiles: LauncherFile[]): Promise<void> {
+async function isManifestFileClean(destination: string, file: LauncherFile, syncMode: LauncherFileSyncMode): Promise<boolean> {
+  if (!existsSync(destination)) return false;
+  if (syncMode === 'seed') {
+    const fileStat = await stat(destination);
+    return fileStat.isFile();
+  }
+  return isFileClean(destination, file);
+}
+
+async function removeStaleManagedRequiredFiles(
+  rootDir: string,
+  projectId: string,
+  manifestFiles: SyncManifestFile[],
+  managedIndex: ManagedProjectIndex
+): Promise<void> {
   const projectDir = join(rootDir, 'projects', projectId);
   if (!existsSync(projectDir)) return;
 
   const expectedFiles = new Set(
-    manifestFiles.map((file) => normalizeProjectFilePath(file.path)).filter(isLauncherOwnedProjectPath)
+    manifestFiles.filter((file) => file.syncMode === 'required').map((file) => file.path)
   );
-  const localFiles = await collectLocalOwnedFiles(projectDir);
 
-  for (const localFile of localFiles) {
-    if (!expectedFiles.has(localFile)) {
-      await rm(assertInsideDirectory(projectDir, join(projectDir, localFile)), { force: true });
+  for (const localFile of managedIndex.files) {
+    if (localFile.syncMode === 'required' && !expectedFiles.has(localFile.path)) {
+      await rm(assertInsideDirectory(projectDir, join(projectDir, localFile.path)), { force: true });
     }
   }
 }
@@ -72,14 +113,16 @@ export async function syncProject({
 }: SyncProjectOptions): Promise<SyncResult> {
   const project = findProject(manifest, projectId);
   let skipped = 0;
-  const pendingFiles: Array<{ file: LauncherFile; destination: string }> = [];
+  const pendingFiles: Array<{ file: LauncherFile; path: string; syncMode: LauncherFileSyncMode; destination: string }> = [];
+  const manifestFiles = syncManifestFiles(rootDir, project.files);
+  const managedIndex = await readManagedProjectIndex(rootDir, projectId);
 
-  for (const file of project.files) {
-    const destination = resolveProjectFile(rootDir, projectId, file.path);
-    if (await isFileClean(destination, file)) {
+  for (const { file, path: safePath, syncMode } of manifestFiles) {
+    const destination = resolveProjectFile(rootDir, projectId, safePath);
+    if (await isManifestFileClean(destination, file, syncMode)) {
       skipped += 1;
     } else {
-      pendingFiles.push({ file, destination });
+      pendingFiles.push({ file, path: safePath, syncMode, destination });
     }
   }
 
@@ -87,7 +130,7 @@ export async function syncProject({
   let downloaded = 0;
   let downloadedBytes = 0;
 
-  for (const { file, destination } of pendingFiles) {
+  for (const { file, path: safePath, destination } of pendingFiles) {
     const requestUrl = new URL(file.url, baseUrl).toString();
     const response = await fetchImpl(requestUrl);
     if (!response.ok) throw new Error(`Failed to download ${file.path}: HTTP ${response.status}`);
@@ -98,7 +141,7 @@ export async function syncProject({
       throw new Error(`Downloaded file failed SHA256 verification: ${file.path}`);
     }
 
-    const tempPath = assertInsideDirectory(join(rootDir, 'tmp'), join(rootDir, 'tmp', projectId, file.path));
+    const tempPath = assertInsideDirectory(join(rootDir, 'tmp'), join(rootDir, 'tmp', projectId, safePath));
     await mkdir(dirname(tempPath), { recursive: true });
     await writeFile(tempPath, bytes);
     await readFile(tempPath);
@@ -112,7 +155,21 @@ export async function syncProject({
     onProgress?.({ file: file.path, downloadedBytes, totalBytes });
   }
 
-  await removeStaleLauncherOwnedFiles(rootDir, projectId, project.files);
+  await removeStaleManagedRequiredFiles(rootDir, projectId, manifestFiles, managedIndex);
+
+  const indexRecords: ManagedProjectFileRecord[] = [];
+  for (const { file, path: safePath, syncMode } of manifestFiles) {
+    const destination = resolveProjectFile(rootDir, projectId, safePath);
+    if (existsSync(destination)) {
+      indexRecords.push({
+        path: safePath,
+        syncMode,
+        sha256: file.sha256,
+        size: file.size
+      });
+    }
+  }
+  await writeManagedProjectIndex(rootDir, projectId, indexRecords);
 
   return {
     status: 'ready',

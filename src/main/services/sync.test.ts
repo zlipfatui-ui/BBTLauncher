@@ -83,6 +83,30 @@ function makeTwoFileManifest(cleanBody: string, dirtyBody: string): LauncherMani
   };
 }
 
+function makeFileManifest(path: string, body: string, syncMode?: 'required' | 'seed'): LauncherManifest {
+  const manifest = makeManifest(body);
+  manifest.projects[0].files = [
+    {
+      path,
+      url: `/files/${path}`,
+      sha256: sha256(body),
+      size: Buffer.byteLength(body),
+      required: true,
+      ...(syncMode ? { syncMode } : {})
+    }
+  ];
+  return manifest;
+}
+
+async function writeManagedIndex(root: string, projectId: string, files: Array<{ path: string; syncMode: 'required' | 'seed' }>) {
+  const metadataDir = join(root, 'metadata', projectId);
+  await mkdir(metadataDir, { recursive: true });
+  await writeFile(
+    join(metadataDir, 'managed-files.json'),
+    `${JSON.stringify({ version: 1, files }, null, 2)}\n`
+  );
+}
+
 describe('project sync', () => {
   it('downloads changed files, verifies hash, and skips clean files on the next run', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-'));
@@ -203,16 +227,20 @@ describe('project sync', () => {
     }
   });
 
-  it('removes stale launcher-owned files after sync without touching saves', async () => {
+  it('does not delete extra player mods, resourcepacks, shaderpacks, or saves', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-'));
     const projectRoot = join(root, 'projects', 'northvale');
     const body = 'northvale mod bytes';
 
     try {
       await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await mkdir(join(projectRoot, 'resourcepacks'), { recursive: true });
+      await mkdir(join(projectRoot, 'shaderpacks'), { recursive: true });
       await mkdir(join(projectRoot, 'saves', 'world'), { recursive: true });
       await writeFile(join(projectRoot, 'mods', 'test.jar'), body);
-      await writeFile(join(projectRoot, 'mods', 'old.jar'), 'old');
+      await writeFile(join(projectRoot, 'mods', 'player-added.jar'), 'player mod');
+      await writeFile(join(projectRoot, 'resourcepacks', 'player-pack.zip'), 'player resourcepack');
+      await writeFile(join(projectRoot, 'shaderpacks', 'player-shader.zip'), 'player shader');
       await writeFile(join(projectRoot, 'saves', 'world', 'level.dat'), 'save data');
 
       const result = await syncProject({
@@ -228,8 +256,123 @@ describe('project sync', () => {
       expect(result.downloaded).toBe(0);
       expect(result.skipped).toBe(1);
       await expect(readFile(join(projectRoot, 'mods', 'test.jar'), 'utf8')).resolves.toBe(body);
-      await expect(readFile(join(projectRoot, 'mods', 'old.jar'), 'utf8')).rejects.toThrow();
+      await expect(readFile(join(projectRoot, 'mods', 'player-added.jar'), 'utf8')).resolves.toBe('player mod');
+      await expect(readFile(join(projectRoot, 'resourcepacks', 'player-pack.zip'), 'utf8')).resolves.toBe('player resourcepack');
+      await expect(readFile(join(projectRoot, 'shaderpacks', 'player-shader.zip'), 'utf8')).resolves.toBe('player shader');
       await expect(readFile(join(projectRoot, 'saves', 'world', 'level.dat'), 'utf8')).resolves.toBe('save data');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('removes stale required files only when they were previously launcher-managed', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-stale-'));
+    const projectRoot = join(root, 'projects', 'northvale');
+    const body = 'northvale mod bytes';
+
+    try {
+      await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await writeFile(join(projectRoot, 'mods', 'test.jar'), body);
+      await writeFile(join(projectRoot, 'mods', 'old-required.jar'), 'old required');
+      await writeManagedIndex(root, 'northvale', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods/old-required.jar', syncMode: 'required' }
+      ]);
+
+      await syncProject({
+        rootDir: root,
+        projectId: 'northvale',
+        manifest: makeManifest(body),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('clean file should not be downloaded');
+        }
+      });
+
+      await expect(readFile(join(projectRoot, 'mods', 'test.jar'), 'utf8')).resolves.toBe(body);
+      await expect(readFile(join(projectRoot, 'mods', 'old-required.jar'), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not overwrite an existing seed file with local changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-seed-'));
+    const projectRoot = join(root, 'projects', 'northvale');
+
+    try {
+      await mkdir(join(projectRoot, 'config'), { recursive: true });
+      await writeFile(join(projectRoot, 'config', 'oculus.properties'), 'player local shader choice');
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'northvale',
+        manifest: makeFileManifest('config/oculus.properties', 'pack shader disabled', 'seed'),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('existing seed should not be downloaded');
+        }
+      });
+
+      expect(result.downloaded).toBe(0);
+      expect(result.skipped).toBe(1);
+      await expect(readFile(join(projectRoot, 'config', 'oculus.properties'), 'utf8')).resolves.toBe(
+        'player local shader choice'
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('downloads a missing seed file and records it in the managed index', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-seed-missing-'));
+    const projectRoot = join(root, 'projects', 'northvale');
+
+    try {
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'northvale',
+        manifest: makeFileManifest('config/oculus.properties', 'pack shader disabled', 'seed'),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => new Response('pack shader disabled')
+      });
+
+      expect(result.downloaded).toBe(1);
+      await expect(readFile(join(projectRoot, 'config', 'oculus.properties'), 'utf8')).resolves.toBe(
+        'pack shader disabled'
+      );
+      await expect(readFile(join(root, 'metadata', 'northvale', 'managed-files.json'), 'utf8')).resolves.toContain(
+        '"syncMode": "seed"'
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('lets pack authors keep local FancyMenu changes during sync', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-author-'));
+    const projectRoot = join(root, 'projects', 'northvale');
+
+    try {
+      await mkdir(join(projectRoot, 'config', 'fancymenu'), { recursive: true });
+      await writeFile(join(projectRoot, 'config', 'fancymenu', 'customization.txt'), 'local menu work');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'northvale',
+        manifest: makeFileManifest('config/fancymenu/customization.txt', 'official menu', 'required'),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('author FancyMenu changes should not be downloaded');
+        }
+      });
+
+      expect(result.downloaded).toBe(0);
+      expect(result.skipped).toBe(1);
+      await expect(readFile(join(projectRoot, 'config', 'fancymenu', 'customization.txt'), 'utf8')).resolves.toBe(
+        'local menu work'
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }

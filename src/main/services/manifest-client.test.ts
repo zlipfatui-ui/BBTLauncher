@@ -52,11 +52,11 @@ describe('manifest client', () => {
     expect(() => validateLauncherManifest(unsafe)).toThrow(/not launcher-managed/i);
   });
 
-  it('allows official shaderpacks but rejects backup and account-like files', () => {
+  it('rejects shaderpacks, backup, and account-like files', () => {
     const withShader = structuredClone(manifest);
     withShader.projects[0].files[0].path = 'shaderpacks/ComplementaryReimagined_r5.8.1.zip';
 
-    expect(validateLauncherManifest(withShader).projects[0].files[0].path).toBe('shaderpacks/ComplementaryReimagined_r5.8.1.zip');
+    expect(() => validateLauncherManifest(withShader)).toThrow(/not launcher-managed/i);
 
     const withBackup = structuredClone(manifest);
     withBackup.projects[0].files[0].path = 'config/client.toml.bak';
@@ -65,6 +65,20 @@ describe('manifest client', () => {
     const withAccount = structuredClone(manifest);
     withAccount.projects[0].files[0].path = 'config/account-token.json';
     expect(() => validateLauncherManifest(withAccount)).toThrow(/forbidden/i);
+  });
+
+  it('preserves optional syncMode for seed and required files', () => {
+    const withSyncMode = structuredClone(manifest);
+    withSyncMode.projects[0].files[0].syncMode = 'seed';
+
+    expect(validateLauncherManifest(withSyncMode).projects[0].files[0]).toMatchObject({
+      path: 'mods/bbtskin-forge-1.4.4.jar',
+      syncMode: 'seed'
+    });
+
+    const invalidSyncMode = structuredClone(manifest);
+    invalidSyncMode.projects[0].files[0].syncMode = 'optional' as 'seed';
+    expect(() => validateLauncherManifest(invalidSyncMode)).toThrow(/syncMode/i);
   });
 
   it('rejects disabled folders regardless of case', () => {
