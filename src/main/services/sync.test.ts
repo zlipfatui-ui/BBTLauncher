@@ -410,6 +410,47 @@ describe('project sync', () => {
     }
   });
 
+  it('lets pack authors bypass manifest mods during sync', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-author-mods-'));
+    const projectRoot = join(root, 'projects', 'northvale');
+
+    try {
+      await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await writeFile(join(projectRoot, 'mods', 'test.jar'), 'local mod work');
+      await writeFile(join(projectRoot, 'mods', 'old-required.jar'), 'old required');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+      await writeManagedIndex(root, 'northvale', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods/old-required.jar', syncMode: 'required' }
+      ]);
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'northvale',
+        manifest: makeManifest('official mod'),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('author mod bypass should not download manifest mods');
+        }
+      });
+
+      expect(result).toEqual({
+        status: 'ready',
+        downloaded: 0,
+        skipped: 0,
+        totalBytes: 0,
+        downloadedBytes: 0
+      });
+      await expect(readFile(join(projectRoot, 'mods', 'test.jar'), 'utf8')).resolves.toBe('local mod work');
+      await expect(readFile(join(projectRoot, 'mods', 'old-required.jar'), 'utf8')).resolves.toBe('old required');
+      await expect(readFile(join(root, 'metadata', 'northvale', 'managed-files.json'), 'utf8')).resolves.not.toContain(
+        'mods/'
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('refuses to sync forbidden manifest paths even if validation was bypassed', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-'));
     const manifest = makeManifest('save data');

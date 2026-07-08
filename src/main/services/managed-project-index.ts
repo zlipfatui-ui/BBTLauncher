@@ -33,12 +33,22 @@ export function isFancyMenuPath(filePath: string): boolean {
   return safePath.startsWith('config/fancymenu/') || safePath.startsWith('fancymenu_data/');
 }
 
+export function isModPath(filePath: string): boolean {
+  const safePath = normalizeProjectFilePath(filePath).toLowerCase();
+  return safePath.startsWith('mods/');
+}
+
+export function isPackAuthorModBypassPath(rootDir: string, filePath: string): boolean {
+  return isPackAuthorMode(rootDir) && isModPath(filePath);
+}
+
 export function effectiveSyncMode(rootDir: string, file: LauncherFile): LauncherFileSyncMode {
   if (isPackAuthorMode(rootDir) && isFancyMenuPath(file.path)) return 'seed';
   return declaredSyncMode(file);
 }
 
 export function effectiveManagedIndexSyncMode(rootDir: string, file: ManagedProjectFileRecord): LauncherFileSyncMode {
+  if (isPackAuthorModBypassPath(rootDir, file.path)) return 'seed';
   if (isPackAuthorMode(rootDir) && isFancyMenuPath(file.path)) return 'seed';
   return file.syncMode === 'seed' ? 'seed' : 'required';
 }

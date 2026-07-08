@@ -8,7 +8,12 @@ import {
   isIgnoredPlayerLocalProjectManifestPath,
   isLauncherManagedProjectPath
 } from './managed-project-files.js';
-import { effectiveManagedIndexSyncMode, effectiveSyncMode, readManagedProjectIndex } from './managed-project-index.js';
+import {
+  effectiveManagedIndexSyncMode,
+  effectiveSyncMode,
+  isPackAuthorModBypassPath,
+  readManagedProjectIndex
+} from './managed-project-index.js';
 import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
 
 interface ManagedManifestFile {
@@ -21,6 +26,7 @@ function managedManifestFiles(rootDir: string, files: LauncherFile[]): ManagedMa
   const managedFiles: ManagedManifestFile[] = [];
   for (const file of files) {
     const safePath = normalizeProjectFilePath(file.path);
+    if (isPackAuthorModBypassPath(rootDir, safePath)) continue;
     if (isIgnoredPlayerLocalProjectManifestPath(safePath)) continue;
     if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
       throw new Error(`Refusing to inspect unmanaged or forbidden project file: ${safePath}`);

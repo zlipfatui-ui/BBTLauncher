@@ -284,4 +284,54 @@ describe('project state inspection', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('lets pack authors bypass missing or changed manifest mods', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-author-mods-'));
+    try {
+      const mods = join(root, 'projects', 'northvale', 'mods');
+      await mkdir(mods, { recursive: true });
+      await writeFile(join(mods, 'test.jar'), 'local mod work');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+
+      await expect(inspectProjectState(root, 'northvale', manifestFor('official mod'))).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+
+      await rm(join(mods, 'test.jar'), { force: true });
+
+      await expect(inspectProjectState(root, 'northvale', manifestFor('official mod'))).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not report old required mod index entries as stale for pack authors', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-author-mod-index-'));
+    try {
+      const mods = join(root, 'projects', 'northvale', 'mods');
+      await mkdir(mods, { recursive: true });
+      await writeFile(join(mods, 'old-required.jar'), 'old required');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+      await writeManagedIndex(root, 'northvale', [
+        { path: 'mods/old-required.jar', syncMode: 'required' }
+      ]);
+
+      await expect(inspectProjectState(root, 'northvale', manifestFor('official mod'))).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

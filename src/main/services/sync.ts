@@ -12,6 +12,7 @@ import {
 import {
   effectiveManagedIndexSyncMode,
   effectiveSyncMode,
+  isPackAuthorModBypassPath,
   readManagedProjectIndex,
   type ManagedProjectIndex,
   type ManagedProjectFileRecord,
@@ -50,6 +51,7 @@ function syncManifestFiles(rootDir: string, files: LauncherFile[]): SyncManifest
   const managedFiles: SyncManifestFile[] = [];
   for (const file of files) {
     const safePath = normalizeProjectFilePath(file.path);
+    if (isPackAuthorModBypassPath(rootDir, safePath)) continue;
     if (isIgnoredPlayerLocalProjectManifestPath(safePath)) continue;
     if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
       throw new Error(`Refusing to sync unmanaged or forbidden project file: ${safePath}`);
