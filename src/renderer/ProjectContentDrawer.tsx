@@ -33,6 +33,17 @@ const starSettings = [
   { y: 42, size: 1, x: 9, drift: 6, delay: 54 }
 ];
 
+const toggleStarSettings = [
+  { size: 1, x: -12, y: -6, delay: 0 },
+  { size: 2, x: 10, y: -9, delay: 16 },
+  { size: 1, x: 15, y: 2, delay: 32 },
+  { size: 3, x: 9, y: 12, delay: 8 },
+  { size: 2, x: -7, y: 14, delay: 24 },
+  { size: 1, x: -15, y: 7, delay: 40 },
+  { size: 2, x: -6, y: -15, delay: 12 },
+  { size: 1, x: 6, y: 16, delay: 28 }
+];
+
 interface ProjectContentDrawerProps {
   api: LauncherApi;
   projectId: string;
@@ -46,6 +57,12 @@ interface ProjectContentDrawerProps {
 interface ConflictState {
   files: File[];
   result: ProjectContentImportResult;
+}
+
+interface ToggleEffectState {
+  kind: ProjectContentKind;
+  name: string;
+  nonce: number;
 }
 
 function readableError(error: unknown): string {
@@ -106,6 +123,7 @@ export function ProjectContentDrawer({
   const [deleteEntry, setDeleteEntry] = useState<ProjectContentEntry | null>(null);
   const [working, setWorking] = useState(false);
   const [burst, setBurst] = useState(0);
+  const [toggleEffect, setToggleEffect] = useState<ToggleEffectState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const openRef = useRef(open);
   const activeConfig = contentKinds.find((entry) => entry.kind === activeKind) ?? contentKinds[0];
@@ -201,6 +219,23 @@ export function ProjectContentDrawer({
     } catch (error) {
       setNotice(readableError(error));
       setDeleteEntry(null);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function toggleEntry(entry: ProjectContentEntry) {
+    if (working) return;
+    const nextEnabled = !entry.enabled;
+    setWorking(true);
+    setNotice('');
+    try {
+      await api.project.content.setEnabled(projectId, entry.kind, entry.relativePath, nextEnabled);
+      await loadKind(entry.kind);
+      setToggleEffect({ kind: entry.kind, name: entry.name, nonce: Date.now() });
+      setNotice(`${entry.name} ${nextEnabled ? 'enabled' : 'disabled'}.`);
+    } catch (error) {
+      setNotice(readableError(error));
     } finally {
       setWorking(false);
     }
@@ -328,28 +363,56 @@ export function ProjectContentDrawer({
             </div>
           ) : null}
           {!loading[activeKind] && !activeError ? activeEntries.map((entry) => (
-            <article className="content-entry" key={entry.relativePath}>
+            <article className={`content-entry ${entry.enabled ? 'enabled' : 'disabled'}`} key={entry.relativePath}>
               <span className="content-entry-file" aria-hidden="true">{entry.kind === 'mods' ? 'JAR' : 'ZIP'}</span>
               <span className="content-entry-copy">
                 <strong title={entry.name}>{entry.name}</strong>
                 <small>{formatBytes(entry.size)} · {formatModified(entry.modifiedAt)}</small>
               </span>
-              {entry.source === 'managed' ? (
-                <span className="content-managed" title="Managed by Northvale" aria-label="Managed by Northvale">
-                  <span className="content-lock" aria-hidden="true" /> Managed
+              <span className="content-entry-actions">
+                <span className="content-toggle-wrap">
+                  {toggleEffect?.kind === entry.kind && toggleEffect.name === entry.name ? (
+                    <span className="content-toggle-stars" aria-hidden="true">
+                      {toggleStarSettings.map((star, index) => (
+                        <span
+                          className="content-toggle-star"
+                          key={`${toggleEffect.nonce}-${index}`}
+                          style={{
+                            '--toggle-star-size': `${star.size}px`,
+                            '--toggle-star-x': `${star.x}px`,
+                            '--toggle-star-y': `${star.y}px`,
+                            '--toggle-star-delay': `${star.delay}ms`
+                          } as CSSProperties}
+                        />
+                      ))}
+                    </span>
+                  ) : null}
+                  <button
+                    className={`content-toggle ${entry.enabled ? 'active' : ''}`}
+                    type="button"
+                    role="switch"
+                    aria-checked={entry.enabled}
+                    aria-label={`${entry.enabled ? 'Disable' : 'Enable'} ${entry.name}`}
+                    title={entry.enabled ? 'Disable file' : 'Enable file'}
+                    onClick={() => void toggleEntry(entry)}
+                    disabled={working}
+                  >
+                    <span aria-hidden="true" />
+                  </button>
                 </span>
-              ) : null}
-              {entry.canDelete ? (
-                <button
-                  className="content-delete"
-                  type="button"
-                  onClick={() => setDeleteEntry(entry)}
-                  aria-label={`Move ${entry.name} to Recycle Bin`}
-                  title="Move to Recycle Bin"
-                >
-                  ×
-                </button>
-              ) : null}
+                {entry.canDelete ? (
+                  <button
+                    className="content-delete"
+                    type="button"
+                    onClick={() => setDeleteEntry(entry)}
+                    aria-label={`Move ${entry.name} to Recycle Bin`}
+                    title="Move to Recycle Bin"
+                    disabled={working}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </span>
             </article>
           )) : null}
         </div>
