@@ -38,16 +38,23 @@ export function isModPath(filePath: string): boolean {
   return safePath.startsWith('mods/');
 }
 
+export function isResourcePackPath(filePath: string): boolean {
+  const safePath = normalizeProjectFilePath(filePath).toLowerCase();
+  return safePath.startsWith('resourcepacks/');
+}
+
 export function isPackAuthorModBypassPath(rootDir: string, filePath: string): boolean {
   return isPackAuthorMode(rootDir) && isModPath(filePath);
 }
 
 export function effectiveSyncMode(rootDir: string, file: LauncherFile): LauncherFileSyncMode {
+  if (isResourcePackPath(file.path)) return 'seed';
   if (isPackAuthorMode(rootDir) && isFancyMenuPath(file.path)) return 'seed';
   return declaredSyncMode(file);
 }
 
 export function effectiveManagedIndexSyncMode(rootDir: string, file: ManagedProjectFileRecord): LauncherFileSyncMode {
+  if (isResourcePackPath(file.path)) return 'seed';
   if (isPackAuthorModBypassPath(rootDir, file.path)) return 'seed';
   if (isPackAuthorMode(rootDir) && isFancyMenuPath(file.path)) return 'seed';
   return file.syncMode === 'seed' ? 'seed' : 'required';

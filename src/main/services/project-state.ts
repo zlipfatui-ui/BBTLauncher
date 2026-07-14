@@ -12,6 +12,7 @@ import {
   effectiveManagedIndexSyncMode,
   effectiveSyncMode,
   isPackAuthorModBypassPath,
+  isResourcePackPath,
   readManagedProjectIndex
 } from './managed-project-index.js';
 import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
@@ -62,8 +63,21 @@ export async function inspectProjectState(
 
   let missing = 0;
   let changed = 0;
+  const managedIndex = await readManagedProjectIndex(rootDir, projectId);
+  const previouslyManagedPaths = new Set(managedIndex.files.map((file) => file.path));
   for (const { file, path: safePath, syncMode } of projectManifestFiles) {
     const destination = assertInsideDirectory(projectDir, join(projectDir, safePath));
+
+    if (isResourcePackPath(safePath)) {
+      const disabledDestination = assertInsideDirectory(projectDir, join(projectDir, `${safePath}.disabled`));
+      const activeFile = existsSync(destination) ? await lstat(destination) : null;
+      const disabledFile = existsSync(disabledDestination) ? await lstat(disabledDestination) : null;
+      const activeIsRegular = Boolean(activeFile?.isFile() && !activeFile.isSymbolicLink());
+      const disabledIsRegular = Boolean(disabledFile?.isFile() && !disabledFile.isSymbolicLink());
+      if (activeIsRegular || disabledIsRegular || previouslyManagedPaths.has(safePath)) continue;
+      missing += 1;
+      continue;
+    }
 
     if (!existsSync(destination)) {
       missing += 1;
@@ -85,7 +99,6 @@ export async function inspectProjectState(
   const requiredManifestPaths = new Set(
     projectManifestFiles.filter((entry) => entry.syncMode === 'required').map((entry) => entry.path)
   );
-  const managedIndex = await readManagedProjectIndex(rootDir, projectId);
   let stale = 0;
   for (const file of managedIndex.files) {
     if (effectiveManagedIndexSyncMode(rootDir, file) !== 'required') continue;

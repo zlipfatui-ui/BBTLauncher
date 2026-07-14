@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { LauncherFile, LauncherFileSyncMode, LauncherManifest, SyncResult } from '../../shared/types.js';
 import { normalizeProjectFilePath, assertInsideDirectory } from './path-safety.js';
@@ -13,6 +13,7 @@ import {
   effectiveManagedIndexSyncMode,
   effectiveSyncMode,
   isPackAuthorModBypassPath,
+  isResourcePackPath,
   readManagedProjectIndex,
   type ManagedProjectIndex,
   type ManagedProjectFileRecord,
@@ -72,7 +73,27 @@ function resolveProjectFile(rootDir: string, projectId: string, safePath: string
   return assertInsideDirectory(join(rootDir, 'projects', projectId), join(rootDir, 'projects', projectId, safePath));
 }
 
-async function isManifestFileClean(destination: string, file: LauncherFile, syncMode: LauncherFileSyncMode): Promise<boolean> {
+async function isRegularFile(destination: string): Promise<boolean> {
+  try {
+    const fileStat = await lstat(destination);
+    return fileStat.isFile() && !fileStat.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+async function isManifestFileClean(
+  destination: string,
+  file: LauncherFile,
+  syncMode: LauncherFileSyncMode,
+  disabledDestination?: string,
+  previouslySeeded = false
+): Promise<boolean> {
+  if (disabledDestination) {
+    if (await isRegularFile(destination)) return true;
+    if (await isRegularFile(disabledDestination)) return true;
+    return previouslySeeded;
+  }
   if (!existsSync(destination)) return false;
   if (syncMode === 'seed') {
     const fileStat = await stat(destination);
@@ -119,10 +140,24 @@ export async function syncProject({
   const pendingFiles: Array<{ file: LauncherFile; path: string; syncMode: LauncherFileSyncMode; destination: string }> = [];
   const manifestFiles = syncManifestFiles(rootDir, project.files);
   const managedIndex = await readManagedProjectIndex(rootDir, projectId);
+  const previouslyManagedPaths = new Set(managedIndex.files.map((file) => file.path));
 
   for (const { file, path: safePath, syncMode } of manifestFiles) {
     const destination = resolveProjectFile(rootDir, projectId, safePath);
-    if (await isManifestFileClean(destination, file, syncMode)) {
+    const isResourcePack = isResourcePackPath(safePath);
+    const disabledDestination = isResourcePack
+      ? assertInsideDirectory(
+          join(rootDir, 'projects', projectId),
+          join(rootDir, 'projects', projectId, `${safePath}.disabled`)
+        )
+      : undefined;
+    if (await isManifestFileClean(
+      destination,
+      file,
+      syncMode,
+      disabledDestination,
+      isResourcePack && previouslyManagedPaths.has(safePath)
+    )) {
       skipped += 1;
     } else {
       pendingFiles.push({ file, path: safePath, syncMode, destination });
@@ -163,7 +198,17 @@ export async function syncProject({
   const indexRecords: ManagedProjectFileRecord[] = [];
   for (const { file, path: safePath, syncMode } of manifestFiles) {
     const destination = resolveProjectFile(rootDir, projectId, safePath);
-    if (existsSync(destination)) {
+    const isResourcePack = isResourcePackPath(safePath);
+    const disabledDestination = isResourcePack
+      ? assertInsideDirectory(
+          join(rootDir, 'projects', projectId),
+          join(rootDir, 'projects', projectId, `${safePath}.disabled`)
+        )
+      : undefined;
+    const preserveResourcePackSeed = isResourcePack && (
+      previouslyManagedPaths.has(safePath) || Boolean(disabledDestination && await isRegularFile(disabledDestination))
+    );
+    if (existsSync(destination) || preserveResourcePackSeed) {
       indexRecords.push({
         path: safePath,
         syncMode,
