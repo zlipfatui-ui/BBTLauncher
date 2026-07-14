@@ -600,7 +600,6 @@ button {
   background-size: 46px 46px, 46px 46px;
   opacity: 0.55;
   pointer-events: none;
-  animation: project-grid-drift 26s linear infinite;
 }
 
 .project-board {
@@ -639,8 +638,6 @@ button {
   opacity: 0.52;
   filter: saturate(0.78) contrast(1.1) brightness(0.58);
   transform: scale(1.035);
-  animation: project-image-drift 18s ease-in-out infinite alternate;
-  will-change: transform;
 }
 
 .project-title,
@@ -914,24 +911,6 @@ button {
   to {
     opacity: 1;
     transform: scale(1);
-  }
-}
-
-@keyframes project-image-drift {
-  from {
-    transform: scale(1.035) translate3d(-0.8%, -0.55%, 0);
-  }
-  to {
-    transform: scale(1.065) translate3d(0.8%, 0.55%, 0);
-  }
-}
-
-@keyframes project-grid-drift {
-  from {
-    background-position: 0 0, 0 0, center;
-  }
-  to {
-    background-position: 46px 46px, 46px 46px, center;
   }
 }
 
