@@ -13,6 +13,7 @@ export interface ProjectContentEntry {
   source: ProjectContentSource;
   size: number;
   modifiedAt: string;
+  enabled: boolean;
   canDelete: boolean;
 }
 

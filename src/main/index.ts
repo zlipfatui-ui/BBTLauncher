@@ -25,6 +25,7 @@ import {
   ensureProjectContentDirectory,
   importProjectContent,
   listProjectContent,
+  setProjectContentEnabled,
   trashProjectContent
 } from './services/project-content.js';
 import { createContentDrawerWindowController } from './services/content-drawer-window.js';
@@ -323,6 +324,18 @@ function registerIpc() {
       relativePath,
       manifest: context.manifest,
       trashItem: (path) => shell.trashItem(path)
+    });
+  });
+
+  ipcMain.handle('project:content:setEnabled', async (_event, projectId, kind, relativePath, enabled) => {
+    const context = await getProjectContentContext(projectId);
+    await setProjectContentEnabled({
+      rootDir: context.runtimeRoot,
+      projectId: context.projectId,
+      kind,
+      relativePath,
+      enabled: Boolean(enabled),
+      manifest: context.manifest
     });
   });
 

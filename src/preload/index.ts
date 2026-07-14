@@ -40,6 +40,8 @@ contextBridge.exposeInMainWorld('bbtLauncher', {
       },
       trash: (projectId: string, kind: ProjectContentKind, relativePath: string) =>
         ipcRenderer.invoke('project:content:trash', projectId, kind, relativePath),
+      setEnabled: (projectId: string, kind: ProjectContentKind, relativePath: string, enabled: boolean) =>
+        ipcRenderer.invoke('project:content:setEnabled', projectId, kind, relativePath, enabled),
       openFolder: (projectId: string, kind: ProjectContentKind) =>
         ipcRenderer.invoke('project:content:openFolder', projectId, kind)
     },

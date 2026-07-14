@@ -1,6 +1,6 @@
 import { constants, existsSync } from 'node:fs';
 import { access, copyFile, lstat, mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import type {
   LauncherManifest,
   ProjectContentEntry,
@@ -34,9 +34,22 @@ interface ManagedClassification {
 interface ImportCandidate {
   sourcePath: string;
   destination: string;
+  existingDestination?: string;
   relativePath: string;
   name: string;
 }
+
+interface ParsedContentFile {
+  name: string;
+  enabled: boolean;
+}
+
+interface ValidatedContentPath {
+  safePath: string;
+  parsed: ParsedContentFile;
+}
+
+const disabledSuffix = '.disabled';
 
 function assertSupportedProject(projectId: string): void {
   if (projectId !== NORTHVALE_PROJECT_ID) {
@@ -102,8 +115,22 @@ async function classifyManagedPaths(
   };
 }
 
-function supportsFile(kind: ProjectContentKind, name: string): boolean {
-  return extname(name).toLowerCase() === allowedExtensions[kind];
+function parseContentFileName(kind: ProjectContentKind, name: string): ParsedContentFile | null {
+  const extension = allowedExtensions[kind];
+  const lowerName = name.toLowerCase();
+  if (lowerName.endsWith(`${extension}${disabledSuffix}`)) {
+    const logicalName = name.slice(0, -disabledSuffix.length);
+    return logicalName.length > extension.length ? { name: logicalName, enabled: false } : null;
+  }
+  if (lowerName.endsWith(extension)) {
+    return name.length > extension.length ? { name, enabled: true } : null;
+  }
+  return null;
+}
+
+function supportsImportFile(kind: ProjectContentKind, name: string): boolean {
+  const parsed = parseContentFileName(kind, name);
+  return Boolean(parsed?.enabled);
 }
 
 function entryFromStat(
@@ -111,7 +138,8 @@ function entryFromStat(
   relativePath: string,
   name: string,
   fileStat: { size: number; mtime: Date },
-  source: 'user' | 'managed'
+  source: 'user' | 'managed',
+  enabled: boolean
 ): ProjectContentEntry {
   return {
     relativePath,
@@ -120,6 +148,7 @@ function entryFromStat(
     source,
     size: fileStat.size,
     modifiedAt: fileStat.mtime.toISOString(),
+    enabled,
     canDelete: source === 'user'
   };
 }
@@ -137,24 +166,21 @@ export async function listProjectContent({
   const result: ProjectContentEntry[] = [];
 
   for (const directoryEntry of entries) {
-    if (!directoryEntry.isFile() || !supportsFile(kind, directoryEntry.name)) continue;
+    const parsed = parseContentFileName(kind, directoryEntry.name);
+    if (!directoryEntry.isFile() || !parsed) continue;
     const relativePath = normalizeProjectFilePath(`${kind}/${directoryEntry.name}`);
-    const isManaged = classification.paths.has(normalizedKey(relativePath));
+    const logicalRelativePath = normalizeProjectFilePath(`${kind}/${parsed.name}`);
+    const isManaged = classification.paths.has(normalizedKey(logicalRelativePath));
 
     if (kind === 'mods' && (isManaged || !classification.available)) continue;
 
-    const source = kind === 'shaderpacks'
-      ? 'user'
-      : isManaged || (kind === 'resourcepacks' && !classification.available)
-        ? 'managed'
-        : 'user';
     const absolutePath = assertInsideDirectory(directory, join(directory, directoryEntry.name));
     const fileStat = await stat(absolutePath);
-    result.push(entryFromStat(kind, relativePath, directoryEntry.name, fileStat, source));
+    result.push(entryFromStat(kind, relativePath, parsed.name, fileStat, 'user', parsed.enabled));
   }
 
   result.sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' }));
-  return { entries: result, classificationAvailable: kind === 'shaderpacks' || classification.available };
+  return { entries: result, classificationAvailable: kind !== 'mods' || classification.available };
 }
 
 function rejection(
@@ -191,8 +217,9 @@ export async function importProjectContent({
     const name = basename(sourcePath);
     const relativePath = normalizeProjectFilePath(`${kind}/${name}`);
     const destination = assertInsideDirectory(directory, join(directory, name));
+    const disabledDestination = assertInsideDirectory(directory, `${destination}${disabledSuffix}`);
 
-    if (!name || !supportsFile(kind, name)) {
+    if (!name || !supportsImportFile(kind, name)) {
       rejected.push(rejection(name || 'Unknown file', 'unsupported-type', `Expected ${allowedExtensions[kind]} file.`));
       continue;
     }
@@ -218,33 +245,51 @@ export async function importProjectContent({
     }
 
     let destinationExists = false;
-    if (classification.paths.has(normalizedKey(relativePath))) {
+    let disabledDestinationExists = false;
+    if (kind === 'mods' && classification.paths.has(normalizedKey(relativePath))) {
       rejected.push(rejection(name, 'managed-conflict', 'This filename is managed by the Northvale manifest.'));
       continue;
     }
-    if (kind !== 'shaderpacks' && !classification.available) {
+    if (kind === 'mods' && !classification.available) {
       rejected.push(rejection(name, 'classification-unavailable', 'Managed file ownership could not be verified.'));
       continue;
     }
-    try {
-      const destinationStat = await lstat(destination);
-      destinationExists = true;
-      if (!destinationStat.isFile() || destinationStat.isSymbolicLink()) {
-        rejected.push(rejection(name, 'not-file', 'The destination is not a regular file.'));
-        continue;
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        rejected.push(rejection(name, 'unreadable', 'The existing destination could not be inspected.'));
-        continue;
+    let destinationInvalid = false;
+    for (const target of [destination, disabledDestination]) {
+      try {
+        const destinationStat = await lstat(target);
+        if (!destinationStat.isFile() || destinationStat.isSymbolicLink()) {
+          destinationInvalid = true;
+          break;
+        }
+        if (target === destination) destinationExists = true;
+        else disabledDestinationExists = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          destinationInvalid = true;
+          break;
+        }
       }
     }
-    if (destinationExists && !overwrite) {
+    if (destinationInvalid) {
+      rejected.push(rejection(name, 'unreadable', 'The existing destination could not be inspected safely.'));
+      continue;
+    }
+    if (destinationExists && disabledDestinationExists) {
+      rejected.push(rejection(name, 'duplicate-name', 'Enabled and disabled copies both exist. Remove one before importing.'));
+      continue;
+    }
+    const existingDestination = destinationExists
+      ? destination
+      : disabledDestinationExists
+        ? disabledDestination
+        : undefined;
+    if (existingDestination && !overwrite) {
       conflicts.push(name);
       continue;
     }
 
-    candidates.push({ sourcePath, destination, relativePath, name });
+    candidates.push({ sourcePath, destination, existingDestination, relativePath, name });
   }
 
   if (conflicts.length > 0) {
@@ -265,16 +310,24 @@ export async function importProjectContent({
       join(directory, `.bbt-import-${token}.tmp`)
     );
     const backupPath = assertInsideDirectory(directory, join(directory, `.bbt-backup-${token}.tmp`));
+    let installed = false;
     try {
       await copyFile(candidate.sourcePath, tempPath);
-      if (existsSync(candidate.destination)) await rename(candidate.destination, backupPath);
+      if (candidate.existingDestination && existsSync(candidate.existingDestination)) {
+        await rename(candidate.existingDestination, backupPath);
+      }
       await rename(tempPath, candidate.destination);
-      if (existsSync(backupPath)) await rm(backupPath, { force: true });
+      installed = true;
       const fileStat = await stat(candidate.destination);
-      imported.push(entryFromStat(kind, candidate.relativePath, candidate.name, fileStat, 'user'));
+      if (existsSync(backupPath)) await rm(backupPath, { force: true }).catch(() => undefined);
+      imported.push(entryFromStat(kind, candidate.relativePath, candidate.name, fileStat, 'user', true));
     } catch {
-      if (!existsSync(candidate.destination) && existsSync(backupPath)) {
-        await rename(backupPath, candidate.destination).catch(() => undefined);
+      if (installed && existsSync(candidate.destination)) {
+        await rm(candidate.destination, { force: true }).catch(() => undefined);
+      }
+      const restorePath = candidate.existingDestination ?? candidate.destination;
+      if (!existsSync(restorePath) && existsSync(backupPath)) {
+        await rename(backupPath, restorePath).catch(() => undefined);
       }
       rejected.push(rejection(candidate.name, 'unreadable', 'The file could not be copied into Northvale.'));
     } finally {
@@ -286,13 +339,16 @@ export async function importProjectContent({
   return { status: 'complete', imported, conflicts: [], rejected };
 }
 
-function validateContentRelativePath(kind: ProjectContentKind, relativePath: string): string {
+function validateContentRelativePath(kind: ProjectContentKind, relativePath: string): ValidatedContentPath {
   const safePath = normalizeProjectFilePath(relativePath);
   const parts = safePath.split('/');
-  if (parts.length !== 2 || parts[0] !== kind || !supportsFile(kind, parts[1])) {
+  const parsed = parts.length === 2 && parts[0] === kind
+    ? parseContentFileName(kind, parts[1])
+    : null;
+  if (!parsed) {
     throw new Error(`Invalid project content path: ${relativePath}`);
   }
-  return safePath;
+  return { safePath, parsed };
 }
 
 export async function trashProjectContent({
@@ -306,12 +362,13 @@ export async function trashProjectContent({
   relativePath: string;
   trashItem(path: string): Promise<void>;
 }): Promise<void> {
-  const safePath = validateContentRelativePath(kind, relativePath);
+  const { safePath, parsed } = validateContentRelativePath(kind, relativePath);
   const classification = await classifyManagedPaths(rootDir, projectId, manifest);
-  if (kind !== 'shaderpacks' && classification.paths.has(normalizedKey(safePath))) {
+  const logicalPath = normalizeProjectFilePath(`${kind}/${parsed.name}`);
+  if (kind === 'mods' && classification.paths.has(normalizedKey(logicalPath))) {
     throw new Error('Manifest-managed content cannot be removed from the launcher.');
   }
-  if (kind !== 'shaderpacks' && !classification.available) {
+  if (kind === 'mods' && !classification.available) {
     throw new Error('Managed file ownership could not be verified.');
   }
 
@@ -323,6 +380,50 @@ export async function trashProjectContent({
     throw new Error('Only regular user files can be moved to the Recycle Bin.');
   }
   await trashItem(resolve(destination));
+}
+
+export async function setProjectContentEnabled({
+  rootDir,
+  projectId,
+  kind,
+  relativePath,
+  enabled,
+  manifest
+}: ContentContext & {
+  relativePath: string;
+  enabled: boolean;
+}): Promise<void> {
+  const { safePath, parsed } = validateContentRelativePath(kind, relativePath);
+  if (parsed.enabled === enabled) return;
+
+  const classification = await classifyManagedPaths(rootDir, projectId, manifest);
+  const logicalPath = normalizeProjectFilePath(`${kind}/${parsed.name}`);
+  if (kind === 'mods' && classification.paths.has(normalizedKey(logicalPath))) {
+    throw new Error('Manifest-managed content cannot be toggled from the launcher.');
+  }
+  if (kind === 'mods' && !classification.available) {
+    throw new Error('Managed Mod ownership could not be verified.');
+  }
+
+  const projectDir = projectDirectory(rootDir, projectId);
+  const source = assertInsideDirectory(projectDir, join(projectDir, safePath));
+  const targetName = enabled ? parsed.name : `${parsed.name}${disabledSuffix}`;
+  const targetRelativePath = normalizeProjectFilePath(`${kind}/${targetName}`);
+  const target = assertInsideDirectory(projectDir, join(projectDir, targetRelativePath));
+
+  const sourceStat = await lstat(source).catch(() => null);
+  if (!sourceStat?.isFile() || sourceStat.isSymbolicLink()) {
+    throw new Error('Only regular user files can be enabled or disabled.');
+  }
+
+  try {
+    await lstat(target);
+    throw new Error(`Cannot ${enabled ? 'enable' : 'disable'} ${parsed.name} because the target state already exists.`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+
+  await rename(source, target);
 }
 
 export async function ensureProjectContentDirectory(

@@ -41,6 +41,7 @@ export interface LauncherApi {
       list(projectId: string, kind: ProjectContentKind): Promise<ProjectContentListResult>;
       importFiles(projectId: string, kind: ProjectContentKind, files: File[], overwrite?: boolean): Promise<ProjectContentImportResult>;
       trash(projectId: string, kind: ProjectContentKind, relativePath: string): Promise<void>;
+      setEnabled(projectId: string, kind: ProjectContentKind, relativePath: string, enabled: boolean): Promise<void>;
       openFolder(projectId: string, kind: ProjectContentKind): Promise<void>;
     };
     onProgress(listener: (progress: LaunchProgress) => void): () => void;
@@ -182,6 +183,9 @@ export const fallbackApi: LauncherApi = {
         return { status: 'complete', imported: [], conflicts: [], rejected: [] };
       },
       async trash() {
+        return undefined;
+      },
+      async setEnabled() {
         return undefined;
       },
       async openFolder() {
