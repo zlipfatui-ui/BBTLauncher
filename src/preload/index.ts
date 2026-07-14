@@ -1,5 +1,12 @@
-import { contextBridge, ipcRenderer } from 'electron';
-import type { LauncherSettings, LaunchProgress, LauncherUpdateState, ProjectLaunchState } from '../shared/types.js';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
+import type {
+  ContentDrawerLayout,
+  LauncherSettings,
+  LaunchProgress,
+  LauncherUpdateState,
+  ProjectContentKind,
+  ProjectLaunchState
+} from '../shared/types.js';
 
 contextBridge.exposeInMainWorld('bbtLauncher', {
   auth: {
@@ -22,6 +29,20 @@ contextBridge.exposeInMainWorld('bbtLauncher', {
     sync: (projectId: string) => ipcRenderer.invoke('project:sync', projectId),
     launch: (projectId: string) => ipcRenderer.invoke('project:launch', projectId),
     stop: (projectId: string) => ipcRenderer.invoke('project:stop', projectId),
+    content: {
+      list: (projectId: string, kind: ProjectContentKind) =>
+        ipcRenderer.invoke('project:content:list', projectId, kind),
+      importFiles: (projectId: string, kind: ProjectContentKind, files: File[], overwrite = false) => {
+        const sourcePaths = files
+          .map((file) => webUtils.getPathForFile(file))
+          .filter((path): path is string => Boolean(path));
+        return ipcRenderer.invoke('project:content:import', projectId, kind, sourcePaths, overwrite);
+      },
+      trash: (projectId: string, kind: ProjectContentKind, relativePath: string) =>
+        ipcRenderer.invoke('project:content:trash', projectId, kind, relativePath),
+      openFolder: (projectId: string, kind: ProjectContentKind) =>
+        ipcRenderer.invoke('project:content:openFolder', projectId, kind)
+    },
     onProgress: (callback: (progress: LaunchProgress) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, progress: LaunchProgress) => callback(progress);
       ipcRenderer.on('project:progress', listener);
@@ -53,6 +74,12 @@ contextBridge.exposeInMainWorld('bbtLauncher', {
     setFullscreen: (fullscreen: boolean) => ipcRenderer.invoke('window:setFullscreen', fullscreen),
     applyDisplaySettings: (settings: Pick<LauncherSettings, 'width' | 'height' | 'fullscreen'>) =>
       ipcRenderer.invoke('window:applyDisplaySettings', settings),
+    setContentDrawerOpen: (open: boolean) => ipcRenderer.invoke('window:setContentDrawerOpen', open),
+    onContentDrawerLayout: (callback: (layout: ContentDrawerLayout) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, layout: ContentDrawerLayout) => callback(layout);
+      ipcRenderer.on('window:contentDrawerLayout', listener);
+      return () => ipcRenderer.removeListener('window:contentDrawerLayout', listener);
+    },
     close: () => ipcRenderer.invoke('window:close')
   }
 });

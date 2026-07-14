@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  ContentDrawerLayout,
   LaunchProgress,
   LauncherUpdateState,
   LauncherManifest,
@@ -14,6 +15,7 @@ import type { LauncherApi } from './launcherApi';
 import { fallbackManifest, getLauncherApi } from './launcherApi';
 import { DiscordIcon, GearIcon, TikTokIcon, YouTubeIcon } from './icons';
 import { resolveRendererAssetUrl } from './assets';
+import { ProjectContentDrawer } from './ProjectContentDrawer';
 import './styles.css';
 
 type Screen = 'splash' | 'auth' | 'main';
@@ -295,6 +297,9 @@ function ProjectPanel({
   const [status, setStatus] = useState('CHECKING');
   const [busy, setBusy] = useState(false);
   const [progressPercent, setProgressPercent] = useState<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerLayout, setDrawerLayout] = useState<ContentDrawerLayout>('overlay');
+  const [contentRevision, setContentRevision] = useState(0);
   const visibleDots = [0, 1, 2];
   const gallery = project.artwork.gallery.length ? project.artwork.gallery : fallbackManifest.projects[0].artwork.gallery;
   const activeImage = resolveRendererAssetUrl(gallery[galleryIndex % gallery.length]);
@@ -388,6 +393,7 @@ function ProjectPanel({
       setStatus(projectState === 'install' ? 'INSTALLING' : 'UPDATING');
       try {
         await api.project.sync(project.id);
+        setContentRevision((value) => value + 1);
         setProjectState('ready');
         setStatus(project.statusText);
         setProgressPercent(null);
@@ -427,7 +433,7 @@ function ProjectPanel({
   const actionDisabled = launchState.status === 'stopping' || (busy && launchState.status !== 'running') || projectState === 'checking' || launchState.status === 'starting';
 
   return (
-    <section className="project-panel">
+    <section className={`project-panel ${drawerOpen ? 'content-drawer-open' : ''} ${drawerLayout === 'expanded' ? 'content-drawer-expanded' : 'content-drawer-overlay'}`}>
       <section className="project-board">
         <div className="project-stage">
           <img className="project-image" src={activeImage} alt={`${project.title} gallery image ${galleryIndex + 1}`} />
@@ -476,6 +482,15 @@ function ProjectPanel({
           </div>
         </div>
       </section>
+      <ProjectContentDrawer
+        api={api}
+        projectId={project.id}
+        open={drawerOpen}
+        layout={drawerLayout}
+        refreshKey={contentRevision}
+        onOpenChange={setDrawerOpen}
+        onLayoutChange={setDrawerLayout}
+      />
     </section>
   );
 }

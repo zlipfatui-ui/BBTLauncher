@@ -2,6 +2,47 @@ export const NORTHVALE_PROJECT_ID = 'northvale';
 
 export type ProjectId = typeof NORTHVALE_PROJECT_ID;
 
+export type ProjectContentKind = 'mods' | 'resourcepacks' | 'shaderpacks';
+export type ProjectContentSource = 'user' | 'managed';
+export type ContentDrawerLayout = 'expanded' | 'overlay';
+
+export interface ProjectContentEntry {
+  relativePath: string;
+  name: string;
+  kind: ProjectContentKind;
+  source: ProjectContentSource;
+  size: number;
+  modifiedAt: string;
+  canDelete: boolean;
+}
+
+export interface ProjectContentListResult {
+  entries: ProjectContentEntry[];
+  classificationAvailable: boolean;
+}
+
+export type ProjectContentRejectionReason =
+  | 'unsupported-type'
+  | 'not-file'
+  | 'unreadable'
+  | 'duplicate-name'
+  | 'managed-conflict'
+  | 'classification-unavailable'
+  | 'already-in-folder';
+
+export interface ProjectContentRejection {
+  name: string;
+  reason: ProjectContentRejectionReason;
+  message: string;
+}
+
+export interface ProjectContentImportResult {
+  status: 'complete' | 'needs-confirmation';
+  imported: ProjectContentEntry[];
+  conflicts: string[];
+  rejected: ProjectContentRejection[];
+}
+
 export interface LauncherManifest {
   schemaVersion: 1;
   generatedAt: string;

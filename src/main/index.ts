@@ -21,6 +21,13 @@ import { applyDisplaySettingsToWindow, createBrowserWindowOptions } from './serv
 import { createProjectLaunchManager } from './services/project-launch-manager.js';
 import { writeLaunchDiagnostics } from './services/diagnostics.js';
 import { createLauncherUpdateService } from './services/updater.js';
+import {
+  ensureProjectContentDirectory,
+  importProjectContent,
+  listProjectContent,
+  trashProjectContent
+} from './services/project-content.js';
+import { createContentDrawerWindowController } from './services/content-drawer-window.js';
 import electronUpdater from 'electron-updater';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -113,6 +120,7 @@ function createAuthService(): AuthSessionService {
 
 const authService = createAuthService();
 const { autoUpdater } = electronUpdater;
+const contentDrawerWindowController = createContentDrawerWindowController();
 
 function sendToAllWindows(channel: string, payload: unknown) {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -170,6 +178,7 @@ function createWindow(settings: LauncherSettings): BrowserWindow {
       sandbox: false
     }
   });
+  contentDrawerWindowController.attach(win);
 
   if (display.fullscreen) {
     win.setFullScreen(true);
@@ -268,6 +277,62 @@ function registerIpc() {
 
   ipcMain.handle('project:stop', (_event, projectId: string) => projectLaunchManager.stop(projectId));
 
+  async function getProjectContentContext(projectId: string) {
+    const settings = await loadSettings(launcherRoot);
+    const runtimeRoot = getRuntimeRoot(settings);
+    let manifest = cachedManifest;
+    if (!manifest) {
+      try {
+        manifest = await manifestClient.refresh();
+        cachedManifest = manifest;
+      } catch {
+        manifest = null;
+      }
+    }
+    return { runtimeRoot, projectId, manifest };
+  }
+
+  ipcMain.handle('project:content:list', async (_event, projectId, kind) => {
+    const context = await getProjectContentContext(projectId);
+    return listProjectContent({
+      rootDir: context.runtimeRoot,
+      projectId: context.projectId,
+      kind,
+      manifest: context.manifest
+    });
+  });
+
+  ipcMain.handle('project:content:import', async (_event, projectId, kind, sourcePaths, overwrite) => {
+    const context = await getProjectContentContext(projectId);
+    return importProjectContent({
+      rootDir: context.runtimeRoot,
+      projectId: context.projectId,
+      kind,
+      manifest: context.manifest,
+      sourcePaths,
+      overwrite: Boolean(overwrite)
+    });
+  });
+
+  ipcMain.handle('project:content:trash', async (_event, projectId, kind, relativePath) => {
+    const context = await getProjectContentContext(projectId);
+    await trashProjectContent({
+      rootDir: context.runtimeRoot,
+      projectId: context.projectId,
+      kind,
+      relativePath,
+      manifest: context.manifest,
+      trashItem: (path) => shell.trashItem(path)
+    });
+  });
+
+  ipcMain.handle('project:content:openFolder', async (_event, projectId, kind) => {
+    const context = await getProjectContentContext(projectId);
+    const directory = await ensureProjectContentDirectory(context.runtimeRoot, context.projectId, kind);
+    const error = await shell.openPath(directory);
+    if (error) throw new Error(error);
+  });
+
   ipcMain.handle('updater:getState', () => updateService.getState());
   ipcMain.handle('updater:check', () => updateService.check());
   ipcMain.handle('updater:download', () => updateService.download());
@@ -295,6 +360,10 @@ function registerIpc() {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return null;
     return applyDisplaySettingsToWindow(win, settings);
+  });
+  ipcMain.handle('window:setContentDrawerOpen', (event, open: boolean) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win ? contentDrawerWindowController.setOpen(win, Boolean(open)) : 'overlay';
   });
   ipcMain.handle('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
 }

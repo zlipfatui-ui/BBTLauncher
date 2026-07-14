@@ -58,10 +58,12 @@ matching the user's first reference image.
 
 ## Mockup Deliverable
 
-Produce one high-fidelity landscape raster mockup of the compact/windowed open
-state. It should clearly show the original launcher expanded to the right, the
-edge handle in its open state, and all three drawer tabs. Text must be rendered
-verbatim, with no added branding or watermark.
+Produce one self-contained HTML page with embedded CSS and JavaScript. The
+mockup must clearly show the launcher expanded to the right in normal windowed
+mode, while a wide/full-screen viewport uses an internal overlay without
+changing the outer frame width. The edge handle opens and closes the drawer;
+the three tabs and enable switches are interactive. Use existing project image
+assets only, with no added branding or watermark.
 
 ## Implementation Notes
 

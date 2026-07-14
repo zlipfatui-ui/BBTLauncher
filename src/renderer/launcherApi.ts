@@ -1,5 +1,6 @@
 import type {
   AuthState,
+  ContentDrawerLayout,
   IpcResult,
   LaunchProgress,
   LaunchResult,
@@ -7,6 +8,9 @@ import type {
   LauncherManifest,
   LauncherSettings,
   ProjectLaunchState,
+  ProjectContentImportResult,
+  ProjectContentKind,
+  ProjectContentListResult,
   ProjectStateResult,
   SafeMinecraftProfile,
   SyncResult
@@ -33,6 +37,12 @@ export interface LauncherApi {
     sync(projectId: string): Promise<SyncResult>;
     launch(projectId: string): Promise<IpcResult<LaunchResult>>;
     stop(projectId: string): Promise<ProjectLaunchState>;
+    content: {
+      list(projectId: string, kind: ProjectContentKind): Promise<ProjectContentListResult>;
+      importFiles(projectId: string, kind: ProjectContentKind, files: File[], overwrite?: boolean): Promise<ProjectContentImportResult>;
+      trash(projectId: string, kind: ProjectContentKind, relativePath: string): Promise<void>;
+      openFolder(projectId: string, kind: ProjectContentKind): Promise<void>;
+    };
     onProgress(listener: (progress: LaunchProgress) => void): () => void;
     onLaunchState(listener: (state: ProjectLaunchState) => void): () => void;
   };
@@ -51,6 +61,8 @@ export interface LauncherApi {
     toggleMaximize(): Promise<boolean>;
     setFullscreen(fullscreen: boolean): Promise<boolean>;
     applyDisplaySettings(settings: Pick<LauncherSettings, 'width' | 'height' | 'fullscreen'>): Promise<Pick<LauncherSettings, 'width' | 'height' | 'fullscreen'> | null>;
+    setContentDrawerOpen(open: boolean): Promise<ContentDrawerLayout>;
+    onContentDrawerLayout(listener: (layout: ContentDrawerLayout) => void): () => void;
     close(): Promise<void>;
   };
 }
@@ -161,6 +173,20 @@ export const fallbackApi: LauncherApi = {
     },
     async stop() {
       return { status: 'idle' };
+    },
+    content: {
+      async list() {
+        return { entries: [], classificationAvailable: true };
+      },
+      async importFiles() {
+        return { status: 'complete', imported: [], conflicts: [], rejected: [] };
+      },
+      async trash() {
+        return undefined;
+      },
+      async openFolder() {
+        return undefined;
+      }
     },
     onProgress() {
       return () => undefined;

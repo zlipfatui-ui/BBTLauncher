@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Northvale Content Drawer Mockup</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --drawer-width: 340px;
+        --launcher-width: 920px;
+        --launcher-height: 620px;
+        --line: rgba(255, 255, 255, 0.09);
+        --line-strong: rgba(255, 255, 255, 0.15);
+        --text: rgba(255, 255, 255, 0.94);
+        --muted: rgba(255, 255, 255, 0.48);
+        --accent: #fff;
+        --ease: cubic-bezier(0.2, 0.86, 0.2, 1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-width: 100%;
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        overflow: auto;
+        padding: 36px;
+        color: var(--text);
+        background: #000;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button {
+        color: inherit;
+        font: inherit;
+      }
+
+      button:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.88);
+        outline-offset: 3px;
+      }
+
+      .launcher-shell {
+        position: relative;
+        width: calc(var(--launcher-width) + var(--drawer-width));
+        height: var(--launcher-height);
+        isolation: isolate;
+        transition: width 300ms var(--ease);
+      }
+
+      .launcher-shell[data-drawer-open="false"] {
+        width: var(--launcher-width);
+      }
+
+      .launcher-window {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        background: #030303;
+        box-shadow:
+          0 40px 90px rgba(0, 0, 0, 0.72),
+          0 0 0 1px rgba(0, 0, 0, 0.8),
+          inset 0 1px 0 rgba(255, 255, 255, 0.045);
+        transition: box-shadow 300ms ease;
+      }
+
+      .launcher-main {
+        position: relative;
+        z-index: 1;
+        flex: 0 0 var(--launcher-width);
+        min-width: 0;
+        height: 100%;
+        overflow: hidden;
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px),
+          #020202;
+        background-size: 44px 44px;
+      }
+
+      .topbar {
+        position: relative;
+        z-index: 5;
+        height: 58px;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        padding: 0 14px 0 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+        background: rgba(3, 3, 3, 0.96);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .brand img {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        object-fit: cover;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+      }
+
+      .brand-copy {
+        display: grid;
+        gap: 1px;
+        line-height: 1;
+      }
+
+      .brand-copy strong {
+        font-size: 11px;
+        letter-spacing: -0.01em;
+      }
+
+      .brand-copy span {
+        color: rgba(255, 255, 255, 0.34);
+        font-size: 8px;
+      }
+
+      .topnav {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 9px;
+        background: rgba(0, 0, 0, 0.46);
+      }
+
+      .topnav button {
+        min-width: 86px;
+        height: 34px;
+        border: 0;
+        border-radius: 7px;
+        color: rgba(255, 255, 255, 0.44);
+        background: transparent;
+        font-size: 9px;
+        font-weight: 650;
+      }
+
+      .topnav button.active {
+        color: rgba(255, 255, 255, 0.92);
+        background: rgba(255, 255, 255, 0.075);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+      }
+
+      .window-controls {
+        justify-self: end;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .window-control {
+        width: 22px;
+        height: 22px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 7px;
+        color: rgba(255, 255, 255, 0.42);
+        background: rgba(255, 255, 255, 0.015);
+        font-size: 11px;
+      }
+
+      .project-view {
+        height: calc(100% - 58px);
+        padding: 20px 34px 13px;
+      }
+
+      .project-board {
+        position: relative;
+        height: calc(100% - 68px);
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.105);
+        border-radius: 26px;
+        background: #070707;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+      }
+
+      .project-board::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background:
+          radial-gradient(circle at 50% 48%, transparent 0%, rgba(0, 0, 0, 0.18) 48%, rgba(0, 0, 0, 0.88) 100%),
+          linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 45%, rgba(0, 0, 0, 0.34));
+        pointer-events: none;
+      }
+
+      .project-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.62;
+        filter: saturate(0.72) brightness(0.64) contrast(1.08);
+        transform: scale(1.025);
+      }
+
+      .project-badge,
+      .status-badge {
+        position: absolute;
+        z-index: 2;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 999px;
+        color: rgba(255, 255, 255, 0.6);
+        background: rgba(3, 3, 3, 0.5);
+        backdrop-filter: blur(10px);
+        font-family: "Arial Narrow", "Roboto Condensed", sans-serif;
+        text-transform: uppercase;
+      }
+
+      .project-badge {
+        top: 22px;
+        left: 22px;
+        padding: 8px 12px 7px;
+        font-size: 10px;
+        letter-spacing: 0.24em;
+      }
+
+      .status-badge {
+        right: 19px;
+        bottom: 14px;
+        padding: 5px 8px 4px;
+        font-size: 8px;
+        letter-spacing: 0.16em;
+      }
+
+      .project-actions {
+        position: relative;
+        height: 68px;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .project-selector,
+      .launch-controls,
+      .gallery-dots {
+        display: flex;
+        align-items: center;
+      }
+
+      .project-selector {
+        justify-self: start;
+        gap: 9px;
+      }
+
+      .circle-button,
+      .project-pill,
+      .play-button {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(5, 5, 5, 0.92);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+      }
+
+      .circle-button {
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border-radius: 50%;
+        color: rgba(255, 255, 255, 0.58);
+        font-size: 20px;
+      }
+
+      .project-pill {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 18px 0 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .project-pill img {
+        width: 23px;
+        height: 23px;
+        border-radius: 7px;
+        object-fit: cover;
+      }
+
+      .gallery-dots {
+        justify-self: center;
+        gap: 8px;
+      }
+
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.24);
+      }
+
+      .dot.active {
+        width: 22px;
+        background: rgba(255, 255, 255, 0.88);
+      }
+
+      .launch-controls {
+        justify-self: end;
+        gap: 11px;
+      }
+
+      .play-button {
+        min-width: 126px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        border-radius: 999px;
+        font-family: "Arial Narrow", sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+      }
+
+      .play-mark {
+        width: 17px;
+        height: 17px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 50%;
+        font-size: 7px;
+      }
+
+      .drawer-scrim {
+        position: absolute;
+        inset: 58px 0 0;
+        z-index: 6;
+        opacity: 0;
+        background: rgba(0, 0, 0, 0.46);
+        pointer-events: none;
+        transition: opacity 260ms ease;
+      }
+
+      .drawer-toggle {
+        position: absolute;
+        top: 50%;
+        right: -15px;
+        z-index: 20;
+        width: 31px;
+        height: 58px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 999px;
+        color: rgba(255, 255, 255, 0.78);
+        background: linear-gradient(180deg, #141414, #090909);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+        transform: translateY(-50%);
+        transition: right 300ms var(--ease), border-color 180ms ease, background 180ms ease;
+      }
+
+      .drawer-toggle:hover {
+        border-color: rgba(255, 255, 255, 0.26);
+        background: linear-gradient(180deg, #1a1a1a, #0c0c0c);
+      }
+
+      .drawer-chevron {
+        position: relative;
+        width: 7px;
+        height: 12px;
+      }
+
+      .drawer-chevron::before,
+      .drawer-chevron::after {
+        content: "";
+        position: absolute;
+        left: 2px;
+        width: 7px;
+        height: 1px;
+        border-radius: 2px;
+        background: currentColor;
+        transform-origin: left center;
+        transition: transform 220ms ease;
+      }
+
+      .drawer-chevron::before {
+        top: 5px;
+        transform: rotate(-42deg);
+      }
+
+      .drawer-chevron::after {
+        bottom: 5px;
+        transform: rotate(42deg);
+      }
+
+      .launcher-shell[data-drawer-open="false"] .drawer-chevron::before {
+        transform: rotate(42deg);
+      }
+
+      .launcher-shell[data-drawer-open="false"] .drawer-chevron::after {
+        transform: rotate(-42deg);
+      }
+
+      .content-drawer {
+        position: relative;
+        z-index: 10;
+        flex: 0 0 var(--drawer-width);
+        width: var(--drawer-width);
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        background: #000;
+        box-shadow: -24px 0 60px rgba(0, 0, 0, 0.32);
+        transform: translateX(0);
+        transition: transform 300ms var(--ease), opacity 220ms ease;
+      }
+
+      .launcher-shell[data-drawer-open="false"] .content-drawer {
+        opacity: 0;
+        transform: translateX(100%);
+        pointer-events: none;
+      }
+
+      .drawer-header {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-height: 76px;
+        padding: 18px 18px 14px 24px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      }
+
+      .drawer-mark {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        color: rgba(255, 255, 255, 0.72);
+        background: #111;
+        font-family: "Arial Narrow", sans-serif;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+
+      .drawer-heading {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+      }
+
+      .drawer-heading strong {
+        font-family: "Arial Narrow", sans-serif;
+        font-size: 12px;
+        letter-spacing: 0.16em;
+      }
+
+      .drawer-heading span {
+        color: rgba(255, 255, 255, 0.34);
+        font-size: 9px;
+      }
+
+      .drawer-close {
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        margin-left: auto;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 9px;
+        color: rgba(255, 255, 255, 0.44);
+        background: rgba(255, 255, 255, 0.025);
+        font-size: 15px;
+      }
+
+      .drawer-tabs {
+        display: grid;
+        grid-template-columns: 0.78fr 1.54fr 0.92fr;
+        gap: 4px;
+        margin: 15px 16px 6px;
+        padding: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 11px;
+        background: rgba(0, 0, 0, 0.28);
+      }
+
+      .drawer-tab {
+        position: relative;
+        height: 33px;
+        padding: 0 7px;
+        border: 0;
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.36);
+        background: transparent;
+        font-family: "Arial Narrow", sans-serif;
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        white-space: nowrap;
+        transition: color 180ms ease, background 180ms ease;
+      }
+
+      .drawer-tab[aria-selected="true"] {
+        color: rgba(255, 255, 255, 0.94);
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+      }
+
+      .drawer-tab[aria-selected="true"]::after {
+        content: "";
+        position: absolute;
+        right: 14px;
+        bottom: 2px;
+        left: 14px;
+        height: 1px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      }
+
+      .drawer-content {
+        min-height: 0;
+        overflow: auto;
+        padding: 10px 16px 14px;
+        scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+        scrollbar-width: thin;
+      }
+
+      .drawer-panel[hidden] {
+        display: none;
+      }
+
+      .section-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 2px 4px 11px;
+        color: rgba(255, 255, 255, 0.3);
+        font-size: 8px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .section-meta span:last-child {
+        color: rgba(255, 255, 255, 0.5);
+      }
+
+      .content-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .content-card {
+        min-height: 67px;
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 11px;
+        padding: 10px 11px;
+        border: 1px solid rgba(255, 255, 255, 0.075);
+        border-radius: 13px;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+      }
+
+      .content-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .content-icon {
+        width: 40px;
+        height: 40px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 11px;
+        color: rgba(255, 255, 255, 0.7);
+        background: #111;
+        font-family: "Arial Narrow", sans-serif;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+
+      .content-copy {
+        min-width: 0;
+        display: grid;
+        gap: 5px;
+      }
+
+      .content-copy strong {
+        overflow: hidden;
+        font-size: 10px;
+        font-weight: 650;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .content-copy span {
+        color: rgba(255, 255, 255, 0.31);
+        font-size: 8px;
+        letter-spacing: 0.03em;
+      }
+
+      .switch {
+        position: relative;
+        width: 34px;
+        height: 20px;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.055);
+        transition: background 180ms ease, border-color 180ms ease;
+      }
+
+      .switch::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.42);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+        transition: transform 180ms var(--ease), background 180ms ease;
+      }
+
+      .switch[aria-checked="true"] {
+        border-color: rgba(255, 255, 255, 0.24);
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .switch[aria-checked="true"]::after {
+        background: #fff;
+        transform: translateX(14px);
+      }
+
+      .drawer-footer {
+        padding: 13px 16px 17px;
+        border-top: 1px solid rgba(255, 255, 255, 0.065);
+      }
+
+      .open-folder {
+        width: 100%;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        color: rgba(255, 255, 255, 0.52);
+        background: rgba(255, 255, 255, 0.025);
+        font-family: "Arial Narrow", sans-serif;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+      }
+
+      .open-folder::before {
+        content: "";
+        width: 13px;
+        height: 9px;
+        border: 1px solid currentColor;
+        border-radius: 2px;
+        box-shadow: -2px -3px 0 -1px #080808, -2px -3px 0 0 currentColor;
+        opacity: 0.65;
+      }
+
+      .mode-hint {
+        position: fixed;
+        right: 20px;
+        bottom: 17px;
+        color: rgba(255, 255, 255, 0.22);
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        pointer-events: none;
+      }
+
+      @media (min-width: 1400px) {
+        .launcher-shell,
+        .launcher-shell[data-drawer-open="false"] {
+          width: min(1240px, calc(100vw - 72px));
+        }
+
+        .launcher-main {
+          flex-basis: 100%;
+          width: 100%;
+        }
+
+        .content-drawer {
+          position: absolute;
+          top: 0;
+          right: 0;
+          bottom: 0;
+        }
+
+        .launcher-shell[data-drawer-open="true"] .drawer-scrim {
+          opacity: 1;
+        }
+
+        .launcher-shell[data-drawer-open="true"] .drawer-toggle {
+          right: calc(var(--drawer-width) - 15px);
+        }
+
+        .mode-hint::after {
+          content: " · full-screen overlay";
+        }
+      }
+
+      @media (max-width: 1399px) {
+        .mode-hint::after {
+          content: " · window expands right";
+        }
+      }
+
+      @media (max-height: 700px) {
+        body {
+          padding-block: 18px;
+        }
+
+        .launcher-shell {
+          transform: scale(0.9);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="launcher-shell" data-launcher-window data-drawer-open="true">
+      <section class="launcher-window" aria-label="BeforeBedtime Launcher mockup">
+        <section class="launcher-main">
+          <header class="topbar">
+            <div class="brand">
+              <img src="../assets/images/logos/BBT.png" alt="" />
+              <div class="brand-copy">
+                <strong>BeforeBedtime</strong>
+                <span>Launcher</span>
+              </div>
+            </div>
+
+            <nav class="topnav" aria-label="Primary navigation">
+              <button class="active" type="button">Project</button>
+              <button type="button">Shop</button>
+              <button type="button">Settings</button>
+            </nav>
+
+            <div class="window-controls" aria-label="Window controls">
+              <button class="window-control" type="button" aria-label="Minimize">−</button>
+              <button class="window-control" type="button" aria-label="Maximize">□</button>
+              <button class="window-control" type="button" aria-label="Close">×</button>
+            </div>
+          </header>
+
+          <div class="project-view">
+            <section class="project-board" aria-label="Northvale gallery">
+              <img class="project-image" src="../assets/images/gallery/ss0/01.jpg" alt="Northvale cavern landscape" />
+              <span class="project-badge">Northvale</span>
+              <span class="status-badge">Up to date</span>
+            </section>
+
+            <footer class="project-actions">
+              <div class="project-selector" aria-label="Project selector">
+                <button class="circle-button" type="button" aria-label="Previous project">‹</button>
+                <button class="project-pill" type="button">
+                  <img src="../assets/images/logos/ss0-cover.jpg" alt="" />
+                  <span>Northvale</span>
+                </button>
+                <button class="circle-button" type="button" aria-label="Next project">›</button>
+              </div>
+
+              <div class="gallery-dots" aria-label="Gallery position">
+                <span class="dot"></span>
+                <span class="dot active"></span>
+                <span class="dot"></span>
+              </div>
+
+              <div class="launch-controls">
+                <button class="play-button" type="button">
+                  <span class="play-mark">▶</span>
+                  <span>PLAY</span>
+                </button>
+                <button class="circle-button" type="button" aria-label="Project settings">⚙</button>
+              </div>
+            </footer>
+          </div>
+
+          <div class="drawer-scrim" aria-hidden="true"></div>
+
+          <button
+            class="drawer-toggle"
+            type="button"
+            data-drawer-toggle
+            aria-controls="northvale-library"
+            aria-expanded="true"
+            aria-label="Close Northvale library"
+          >
+            <span class="drawer-chevron" aria-hidden="true"></span>
+          </button>
+        </section>
+
+        <aside id="northvale-library" class="content-drawer" aria-label="Northvale library">
+          <header class="drawer-header">
+            <div class="drawer-mark" aria-hidden="true">NV</div>
+            <div class="drawer-heading">
+              <strong>NORTHVALE LIBRARY</strong>
+              <span>Manage project content</span>
+            </div>
+            <button class="drawer-close" type="button" data-drawer-close aria-label="Close library">×</button>
+          </header>
+
+          <div class="drawer-tabs" role="tablist" aria-label="Content type">
+            <button class="drawer-tab" id="tab-mods" type="button" role="tab" aria-selected="true" aria-controls="panel-mods" tabindex="0">MODS</button>
+            <button class="drawer-tab" id="tab-packs" type="button" role="tab" aria-selected="false" aria-controls="panel-packs" tabindex="-1">RESOURCE PACKS</button>
+            <button class="drawer-tab" id="tab-shaders" type="button" role="tab" aria-selected="false" aria-controls="panel-shaders" tabindex="-1">SHADERS</button>
+          </div>
+
+          <div class="drawer-content">
+            <section class="drawer-panel" id="panel-mods" role="tabpanel" aria-labelledby="tab-mods">
+              <div class="section-meta"><span>Installed</span><span>12 active</span></div>
+              <div class="content-list">
+                <article class="content-card">
+                  <span class="content-icon">SO</span>
+                  <span class="content-copy"><strong>Sodium</strong><span>v0.6.13 · Performance</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Enable Sodium"></button>
+                </article>
+                <article class="content-card">
+                  <span class="content-icon">IR</span>
+                  <span class="content-copy"><strong>Iris Shaders</strong><span>v1.8.8 · Visuals</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Enable Iris Shaders"></button>
+                </article>
+                <article class="content-card">
+                  <span class="content-icon">VC</span>
+                  <span class="content-copy"><strong>Simple Voice Chat</strong><span>v2.5.27 · Social</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Enable Simple Voice Chat"></button>
+                </article>
+                <article class="content-card">
+                  <span class="content-icon">JE</span>
+                  <span class="content-copy"><strong>JourneyMap</strong><span>v5.10.3 · Exploration</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Enable JourneyMap"></button>
+                </article>
+              </div>
+            </section>
+
+            <section class="drawer-panel" id="panel-packs" role="tabpanel" aria-labelledby="tab-packs" hidden>
+              <div class="section-meta"><span>Installed</span><span>2 active</span></div>
+              <div class="content-list">
+                <article class="content-card">
+                  <span class="content-icon">FA</span>
+                  <span class="content-copy"><strong>Fresh Animations</strong><span>v1.9.2 · Entities</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Enable Fresh Animations"></button>
+                </article>
+                <article class="content-card">
+                  <span class="content-icon">BL</span>
+                  <span class="content-copy"><strong>Better Leaves</strong><span>v9.1 · Environment</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Enable Better Leaves"></button>
+                </article>
+                <article class="content-card">
+                  <span class="content-icon">FX</span>
+                  <span class="content-copy"><strong>Faithful x32</strong><span>v1.21 · Textures</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Enable Faithful x32"></button>
+                </article>
+              </div>
+            </section>
+
+            <section class="drawer-panel" id="panel-shaders" role="tabpanel" aria-labelledby="tab-shaders" hidden>
+              <div class="section-meta"><span>Available</span><span>1 active</span></div>
+              <div class="content-list">
+                <article class="content-card">
+                  <span class="content-icon">CR</span>
+                  <span class="content-copy"><strong>Complementary Reimagined</strong><span>v5.4 · Balanced</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Enable Complementary Reimagined"></button>
+                </article>
+                <article class="content-card">
+                  <span class="content-icon">BS</span>
+                  <span class="content-copy"><strong>BSL Shaders</strong><span>v10.0 · Cinematic</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Enable BSL Shaders"></button>
+                </article>
+                <article class="content-card">
+                  <span class="content-icon">SV</span>
+                  <span class="content-copy"><strong>Sildur's Vibrant</strong><span>v1.52 · High contrast</span></span>
+                  <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Enable Sildur's Vibrant"></button>
+                </article>
+              </div>
+            </section>
+          </div>
+
+          <footer class="drawer-footer">
+            <button class="open-folder" type="button" data-open-folder>OPEN FOLDER</button>
+          </footer>
+        </aside>
+      </section>
+    </main>
+
+    <div class="mode-hint" aria-hidden="true">responsive mockup</div>
+
+    <script>
+      const shell = document.querySelector('[data-launcher-window]');
+      const drawerToggle = document.querySelector('[data-drawer-toggle]');
+      const drawerClose = document.querySelector('[data-drawer-close]');
+      const tabs = [...document.querySelectorAll('[role="tab"]')];
+      const panels = [...document.querySelectorAll('[role="tabpanel"]')];
+      const switches = [...document.querySelectorAll('[role="switch"]')];
+
+      function setDrawerOpen(open) {
+        shell.dataset.drawerOpen = String(open);
+        drawerToggle.setAttribute('aria-expanded', String(open));
+        drawerToggle.setAttribute('aria-label', open ? 'Close Northvale library' : 'Open Northvale library');
+        if (!open) drawerToggle.focus();
+      }
+
+      drawerToggle.addEventListener('click', () => {
+        setDrawerOpen(shell.dataset.drawerOpen !== 'true');
+      });
+
+      drawerClose.addEventListener('click', () => setDrawerOpen(false));
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => {
+          tabs.forEach((candidate) => {
+            const selected = candidate === tab;
+            candidate.setAttribute('aria-selected', String(selected));
+            candidate.tabIndex = selected ? 0 : -1;
+          });
+
+          panels.forEach((panel) => {
+            panel.hidden = panel.id !== tab.getAttribute('aria-controls');
+          });
+        });
+
+        tab.addEventListener('keydown', (event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          const direction = event.key === 'ArrowRight' ? 1 : -1;
+          const nextTab = tabs[(index + direction + tabs.length) % tabs.length];
+          nextTab.click();
+          nextTab.focus();
+        });
+      });
+
+      switches.forEach((control) => {
+        control.addEventListener('click', () => {
+          control.setAttribute('aria-checked', String(control.getAttribute('aria-checked') !== 'true'));
+        });
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && shell.dataset.drawerOpen === 'true') {
+          setDrawerOpen(false);
+        }
+      });
+    </script>
+  </body>
+</html>
