@@ -57,6 +57,12 @@ export function LauncherHeader({
   }
 
   function toggleProjectMenu() {
+    if (activeTab !== 'project') {
+      setProjectMenuOpen(false);
+      onTabChange('project');
+      return;
+    }
+
     onTabChange('project');
     setProjectMenuOpen((open) => !open);
   }
@@ -81,7 +87,12 @@ export function LauncherHeader({
             aria-expanded={projectMenuOpen}
             onClick={toggleProjectMenu}
           >
-            <span className="project-trigger-index">01 / 02</span>
+            <img
+              className="project-trigger-artwork"
+              src={resolveRendererAssetUrl(project.artwork.cover)}
+              alt=""
+              aria-hidden="true"
+            />
             <span className="project-trigger-copy">
               <strong>{project.title.toUpperCase()}</strong>
               <small>SEASON 01 · {project.statusText}</small>

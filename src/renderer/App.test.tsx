@@ -199,7 +199,14 @@ describe('App', () => {
     await screen.findByText('NORTHVALE / SEASON 01');
 
     const projectNavigation = screen.getByRole('navigation', { name: 'Main tabs' });
-    await user.click(within(projectNavigation).getByRole('button', { name: 'Project' }));
+    const projectTrigger = within(projectNavigation).getByRole('button', { name: 'Project' });
+    expect(projectTrigger.querySelector('.project-trigger-artwork')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/images/logos/ss0-cover.jpg')
+    );
+    expect(projectTrigger).not.toHaveTextContent('01 / 02');
+
+    await user.click(projectTrigger);
 
     const projectMenu = screen.getByRole('menu', { name: 'Project seasons' });
     expect(within(projectMenu).getByText('NORTHVALE')).toBeInTheDocument();
@@ -215,6 +222,30 @@ describe('App', () => {
     expect(api.project.getState).toHaveBeenCalledTimes(stateCalls);
     expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
     expect(screen.queryByText('NORTHVALE / SEASON 02')).not.toBeInTheDocument();
+  });
+
+  it('returns from Shop and Settings without opening the season menu, then toggles it from Project', async () => {
+    const user = userEvent.setup();
+    render(<App api={makeApi(profile)} />);
+
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+    await screen.findByText('NORTHVALE / SEASON 01');
+
+    const projectNavigation = screen.getByRole('navigation', { name: 'Main tabs' });
+    const projectTrigger = within(projectNavigation).getByRole('button', { name: 'Project' });
+
+    await user.click(within(projectNavigation).getByRole('button', { name: 'Shop' }));
+    await user.click(projectTrigger);
+    expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
+    expect(screen.queryByRole('menu', { name: 'Project seasons' })).not.toBeInTheDocument();
+
+    await user.click(within(projectNavigation).getByRole('button', { name: 'Settings' }));
+    await user.click(projectTrigger);
+    expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
+    expect(screen.queryByRole('menu', { name: 'Project seasons' })).not.toBeInTheDocument();
+
+    await user.click(projectTrigger);
+    expect(screen.getByRole('menu', { name: 'Project seasons' })).toBeInTheDocument();
   });
 
   it('presents the approved Northvale story and opens project content from the hero', async () => {
@@ -601,6 +632,33 @@ describe('App', () => {
     expect(api.window?.close).toHaveBeenCalledOnce();
   });
 
+  it('keeps working window controls available across every main tab', async () => {
+    const user = userEvent.setup();
+    const api = makeApi(profile);
+    render(<App api={api} />);
+
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+    await screen.findByText('NORTHVALE / SEASON 01');
+
+    const projectNavigation = screen.getByRole('navigation', { name: 'Main tabs' });
+    for (const tab of ['Project', 'Shop', 'Settings']) {
+      if (tab !== 'Project') {
+        await user.click(within(projectNavigation).getByRole('button', { name: tab }));
+      }
+      expect(screen.getByRole('button', { name: 'Minimize' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Maximize' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Minimize' }));
+    await user.click(screen.getByRole('button', { name: 'Maximize' }));
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    expect(api.window?.minimize).toHaveBeenCalledOnce();
+    expect(api.window?.toggleMaximize).toHaveBeenCalledOnce();
+    expect(api.window?.close).toHaveBeenCalledOnce();
+  });
+
   it('requires Terms acceptance before Microsoft login and opens Northvale project after login', async () => {
     const user = userEvent.setup();
     const api = makeApi();
@@ -648,6 +706,7 @@ describe('App', () => {
     expect(windowChromeRule).toContain('width: max-content');
     expect(windowChromeRule).toContain('pointer-events: auto');
     expect(windowChromeRule).toContain('-webkit-app-region: no-drag');
+    expect(windowChromeRule).toContain('z-index: 1300');
     expect(windowChromeRule).not.toContain('left: 0');
     expect(controlsRule).toContain('position: static');
     expect(controlsRule).toContain('-webkit-app-region: no-drag');
@@ -655,6 +714,7 @@ describe('App', () => {
     expect(splashRule).not.toContain('-webkit-app-region: drag');
     expect(authRule).not.toContain('-webkit-app-region: drag');
     expect(topbarRule).not.toContain('-webkit-app-region: drag');
+    expect(topbarRule).toContain('z-index: 1000');
     expect(tabsRule).toContain('display: flex');
     expect(tabsRule).toContain('align-items: stretch');
     expect(tabsRule).toContain('-webkit-app-region: no-drag');
