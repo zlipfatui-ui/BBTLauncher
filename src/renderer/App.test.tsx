@@ -277,18 +277,84 @@ describe('App', () => {
     expect(screen.getByRole('tab', { name: 'SHADERS 0' })).toBeInTheDocument();
   });
 
-  it('starts only from Click to start', async () => {
-    const user = userEvent.setup();
-    const { container } = render(<App api={makeApi()} />);
+  it('keeps the Dream Trail decorative and starts only when Click to start is clicked', async () => {
+    vi.useFakeTimers();
 
-    fireEvent.click(container.querySelector('.splash') as HTMLElement);
-    expect(screen.queryByRole('button', { name: /login to microsoft/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^beforebedtime$/i })).not.toBeInTheDocument();
+    try {
+      const { container } = render(<App api={makeApi()} />);
 
-    const startButton = screen.getByRole('button', { name: /click to start/i });
-    expect(startButton.querySelector('.start-line')).toBeInTheDocument();
-    await user.click(startButton);
-    expect(await screen.findByRole('button', { name: /login to microsoft/i })).toBeInTheDocument();
+      fireEvent.click(container.querySelector('.splash') as HTMLElement);
+      expect(screen.queryByRole('button', { name: /login to microsoft/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^beforebedtime$/i })).not.toBeInTheDocument();
+
+      const startButton = screen.getByRole('button', { name: /click to start/i });
+      const trail = startButton.querySelector('.start-trail');
+      const comet = startButton.querySelector('.start-comet');
+      const sparks = startButton.querySelectorAll('.start-spark');
+
+      expect(trail).toHaveAttribute('aria-hidden', 'true');
+      expect(comet).toHaveAttribute('aria-hidden', 'true');
+      expect(sparks).toHaveLength(2);
+      sparks.forEach((spark) => expect(spark).toHaveAttribute('aria-hidden', 'true'));
+
+      fireEvent.mouseEnter(startButton);
+      fireEvent.focus(startButton);
+      await act(async () => {
+        vi.advanceTimersByTime(220);
+        await Promise.resolve();
+      });
+
+      expect(container.querySelector('.splash.is-exiting')).not.toBeInTheDocument();
+      expect(container.querySelector('.auth')).not.toBeInTheDocument();
+      expect(container.querySelector('.main')).not.toBeInTheDocument();
+
+      fireEvent.click(startButton);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(container.querySelector('.splash.is-exiting')).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(220);
+        await Promise.resolve();
+      });
+      expect(screen.getByRole('button', { name: /login to microsoft/i })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('defines the Dream Trail CTA interaction states', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
+    const startRule = css.match(/\.start\s*\{([^}]*)\}/s)?.[1] || '';
+    const trailRule = css.match(/\.start-trail path\s*\{([^}]*)\}/s)?.[1] || '';
+    const trailAnimationRule = css.match(/\.start:hover \.start-trail path,\s*\.start:focus-visible \.start-trail path\s*\{([^}]*)\}/s)?.[1] || '';
+    const cometAnimationRule = css.match(/\.start:hover \.start-comet,\s*\.start:focus-visible \.start-comet\s*\{([^}]*)\}/s)?.[1] || '';
+    const sparkOneAnimationRule = css.match(/\.start:hover \.start-spark-one,\s*\.start:focus-visible \.start-spark-one\s*\{([^}]*)\}/s)?.[1] || '';
+    const sparkTwoAnimationRule = css.match(/\.start:hover \.start-spark-two,\s*\.start:focus-visible \.start-spark-two\s*\{([^}]*)\}/s)?.[1] || '';
+    const activeRule = css.match(/\.start:active\s*\{([^}]*)\}/s)?.[1] || '';
+    const reducedMotionCss = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*)\}\s*$/)?.[1] || '';
+    const reducedTrailRule = reducedMotionCss.match(/\.start:hover \.start-trail path,\s*\.start:focus-visible \.start-trail path\s*\{([^}]*)\}/s)?.[1] || '';
+    const reducedCometRule = reducedMotionCss.match(/\.start:hover \.start-comet,\s*\.start:focus-visible \.start-comet\s*\{([^}]*)\}/s)?.[1] || '';
+    const reducedSparkRule = reducedMotionCss.match(/\.start:hover \.start-spark,\s*\.start:focus-visible \.start-spark\s*\{([^}]*)\}/s)?.[1] || '';
+
+    expect(startRule).toContain('font-family: Georgia, "Times New Roman", serif;');
+    expect(startRule).toContain('font-size: 17px;');
+    expect(startRule).toContain('font-style: italic;');
+    expect(startRule).toContain('padding: 0 8px 8px;');
+    expect(trailRule).toContain('stroke-dasharray: 156;');
+    expect(trailRule).toContain('stroke-dashoffset: 156;');
+    expect(trailRule).toContain('opacity: 0;');
+    expect(trailAnimationRule).toContain('start-trail-draw 720ms');
+    expect(cometAnimationRule).toContain('start-comet-flight 1.05s');
+    expect(cometAnimationRule).toContain('80ms both;');
+    expect(sparkOneAnimationRule).toContain('720ms both;');
+    expect(sparkTwoAnimationRule).toContain('860ms both;');
+    expect(activeRule).toContain('transform: scale(0.98);');
+    expect(reducedTrailRule).toContain('animation: none;');
+    expect(reducedTrailRule).toContain('stroke-dashoffset: 0;');
+    expect(reducedCometRule).toContain('animation: none;');
+    expect(reducedSparkRule).toContain('animation: none;');
   });
 
   it('opens the published Terms of Service and Privacy Policy pages', async () => {

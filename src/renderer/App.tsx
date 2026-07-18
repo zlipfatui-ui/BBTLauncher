@@ -122,7 +122,19 @@ function Splash({ onStart, api, isExiting }: { onStart: () => void; api: Launche
         <div className="family">FAMILY</div>
         <button className="start" type="button" onClick={onStart}>
           <span>Click to start</span>
-          <span className="start-line" aria-hidden="true" />
+          <svg className="start-trail" aria-hidden="true" viewBox="0 0 128 18" preserveAspectRatio="none">
+            <path d="M4 11C28 4 50 15 74 9S108 5 124 10" />
+          </svg>
+          <svg className="start-comet" aria-hidden="true" viewBox="0 0 18 12">
+            <path d="M1 6h10" />
+            <circle cx="13" cy="6" r="2.5" />
+          </svg>
+          <svg className="start-spark start-spark-one" aria-hidden="true" viewBox="0 0 12 12">
+            <path d="M6 0v12M0 6h12M1.8 1.8l8.4 8.4M10.2 1.8 1.8 10.2" />
+          </svg>
+          <svg className="start-spark start-spark-two" aria-hidden="true" viewBox="0 0 12 12">
+            <path d="M6 0v12M0 6h12M1.8 1.8l8.4 8.4M10.2 1.8 1.8 10.2" />
+          </svg>
         </button>
         <div className="socials" aria-label="Social links">
           {socialLinks.map((link) => (
