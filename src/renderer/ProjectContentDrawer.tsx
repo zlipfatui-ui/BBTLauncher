@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import type {
   ContentDrawerLayout,
   ProjectContentEntry,
@@ -9,9 +9,9 @@ import type { LauncherApi } from './launcherApi';
 import './project-content-drawer.css';
 
 const contentKinds: Array<{ kind: ProjectContentKind; label: string; accept: string }> = [
-  { kind: 'mods', label: 'Mods', accept: '.jar' },
-  { kind: 'resourcepacks', label: 'Resource Packs', accept: '.zip' },
-  { kind: 'shaderpacks', label: 'Shaders', accept: '.zip' }
+  { kind: 'mods', label: 'MODS', accept: '.jar' },
+  { kind: 'resourcepacks', label: 'RESOURCE PACKS', accept: '.zip' },
+  { kind: 'shaderpacks', label: 'SHADERS', accept: '.zip' }
 ];
 
 const emptyEntries: Record<ProjectContentKind, ProjectContentEntry[]> = {
@@ -20,33 +20,12 @@ const emptyEntries: Record<ProjectContentKind, ProjectContentEntry[]> = {
   shaderpacks: []
 };
 
-const starSettings = [
-  { y: -25, size: 1, x: -14, drift: -9, delay: 0 },
-  { y: -18, size: 2, x: 7, drift: 12, delay: 30 },
-  { y: -10, size: 1, x: -6, drift: -17, delay: 60 },
-  { y: -3, size: 3, x: 13, drift: 8, delay: 18 },
-  { y: 5, size: 2, x: -18, drift: -11, delay: 48 },
-  { y: 12, size: 1, x: 4, drift: 17, delay: 78 },
-  { y: 20, size: 2, x: -8, drift: -7, delay: 36 },
-  { y: 27, size: 1, x: 16, drift: 10, delay: 66 },
-  { y: 34, size: 3, x: -13, drift: -15, delay: 12 },
-  { y: 42, size: 1, x: 9, drift: 6, delay: 54 }
-];
-
-const toggleStarSettings = [
-  { size: 1, x: -12, y: -6, delay: 0 },
-  { size: 2, x: 10, y: -9, delay: 16 },
-  { size: 1, x: 15, y: 2, delay: 32 },
-  { size: 3, x: 9, y: 12, delay: 8 },
-  { size: 2, x: -7, y: 14, delay: 24 },
-  { size: 1, x: -15, y: 7, delay: 40 },
-  { size: 2, x: -6, y: -15, delay: 12 },
-  { size: 1, x: 6, y: 16, delay: 28 }
-];
-
 interface ProjectContentDrawerProps {
   api: LauncherApi;
   projectId: string;
+  projectTitle: string;
+  projectSeason: string;
+  projectMonogram: string;
   open: boolean;
   layout: ContentDrawerLayout;
   refreshKey: number;
@@ -57,12 +36,6 @@ interface ProjectContentDrawerProps {
 interface ConflictState {
   files: File[];
   result: ProjectContentImportResult;
-}
-
-interface ToggleEffectState {
-  kind: ProjectContentKind;
-  name: string;
-  nonce: number;
 }
 
 function readableError(error: unknown): string {
@@ -103,6 +76,9 @@ function resultNotice(result: ProjectContentImportResult): string {
 export function ProjectContentDrawer({
   api,
   projectId,
+  projectTitle,
+  projectSeason,
+  projectMonogram,
   open,
   layout,
   refreshKey,
@@ -122,8 +98,6 @@ export function ProjectContentDrawer({
   const [conflict, setConflict] = useState<ConflictState | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<ProjectContentEntry | null>(null);
   const [working, setWorking] = useState(false);
-  const [burst, setBurst] = useState(0);
-  const [toggleEffect, setToggleEffect] = useState<ToggleEffectState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const openRef = useRef(open);
   const activeConfig = contentKinds.find((entry) => entry.kind === activeKind) ?? contentKinds[0];
@@ -164,7 +138,6 @@ export function ProjectContentDrawer({
 
   async function toggleDrawer() {
     const nextOpen = !open;
-    setBurst((value) => value + 1);
     setDragging(false);
     setNotice('');
     onOpenChange(nextOpen);
@@ -232,7 +205,6 @@ export function ProjectContentDrawer({
     try {
       await api.project.content.setEnabled(projectId, entry.kind, entry.relativePath, nextEnabled);
       await loadKind(entry.kind);
-      setToggleEffect({ kind: entry.kind, name: entry.name, nonce: Date.now() });
       setNotice(`${entry.name} ${nextEnabled ? 'enabled' : 'disabled'}.`);
     } catch (error) {
       setNotice(readableError(error));
@@ -254,40 +226,25 @@ export function ProjectContentDrawer({
 
   return (
     <>
-      <div className={`content-drawer-stars ${open ? 'open' : ''}`} aria-hidden="true">
-        {burst > 0 ? starSettings.map((star, index) => (
-          <span
-            className="content-drawer-star"
-            key={`${burst}-${index}`}
-            style={{
-              '--star-y': `${star.y}px`,
-              '--star-size': `${star.size}px`,
-              '--star-x': `${star.x}px`,
-              '--star-drift': `${star.drift}px`,
-              '--star-delay': `${star.delay}ms`
-            } as CSSProperties}
-          />
-        )) : null}
-      </div>
       <button
         className={`content-drawer-handle ${open ? 'open' : ''}`}
         type="button"
         onClick={toggleDrawer}
-        aria-label={open ? 'Close Northvale content library' : 'Open Northvale content library'}
+        aria-label={`${open ? 'Close' : 'Open'} ${projectTitle} content library`}
         aria-expanded={open}
       >
         <span aria-hidden="true">{open ? '›' : '‹'}</span>
       </button>
       <aside
         className={`content-drawer ${open ? 'open' : ''} ${layout}`}
-        aria-label="Northvale content library"
+        aria-label={`${projectTitle} content library`}
         aria-hidden={!open}
       >
         <header className="content-drawer-header">
-          <span className="content-drawer-monogram" aria-hidden="true">NV</span>
+          <span className="content-drawer-monogram" aria-hidden="true">{projectMonogram}</span>
           <span className="content-drawer-title">
-            <strong>Northvale Library</strong>
-            <small>Manage project content</small>
+            <strong>{projectTitle.toUpperCase()} LIBRARY</strong>
+            <small>{projectSeason.toUpperCase()} · MANAGE PROJECT CONTENT</small>
           </span>
           <button className="content-drawer-close" type="button" onClick={toggleDrawer} aria-label="Close content library">×</button>
         </header>
@@ -306,7 +263,8 @@ export function ProjectContentDrawer({
                 setNotice('');
               }}
             >
-              {item.label}
+              <span>{item.label}</span>
+              <small>{loading[item.kind] ? '…' : entries[item.kind].length}</small>
             </button>
           ))}
         </div>
@@ -371,22 +329,6 @@ export function ProjectContentDrawer({
               </span>
               <span className="content-entry-actions">
                 <span className="content-toggle-wrap">
-                  {toggleEffect?.kind === entry.kind && toggleEffect.name === entry.name ? (
-                    <span className="content-toggle-stars" aria-hidden="true">
-                      {toggleStarSettings.map((star, index) => (
-                        <span
-                          className="content-toggle-star"
-                          key={`${toggleEffect.nonce}-${index}`}
-                          style={{
-                            '--toggle-star-size': `${star.size}px`,
-                            '--toggle-star-x': `${star.x}px`,
-                            '--toggle-star-y': `${star.y}px`,
-                            '--toggle-star-delay': `${star.delay}ms`
-                          } as CSSProperties}
-                        />
-                      ))}
-                    </span>
-                  ) : null}
                   <button
                     className={`content-toggle ${entry.enabled ? 'active' : ''}`}
                     type="button"
@@ -449,7 +391,7 @@ export function ProjectContentDrawer({
           <section className="content-modal" role="dialog" aria-modal="true" aria-labelledby="content-delete-title">
             <span className="content-modal-mark" aria-hidden="true">×</span>
             <h2 id="content-delete-title">Move file to Recycle Bin?</h2>
-            <p><strong>{deleteEntry.name}</strong> will be removed from Northvale. You can restore it from the Recycle Bin.</p>
+            <p><strong>{deleteEntry.name}</strong> will be removed from {projectTitle}. You can restore it from the Recycle Bin.</p>
             <div className="content-modal-actions">
               <button type="button" onClick={() => setDeleteEntry(null)} disabled={working}>Cancel</button>
               <button className="primary" type="button" onClick={() => void confirmDelete()} disabled={working}>

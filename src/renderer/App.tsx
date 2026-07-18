@@ -1,48 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  ContentDrawerLayout,
-  LaunchProgress,
   LauncherUpdateState,
   LauncherManifest,
-  LauncherProject,
   LauncherSettings,
-  ProjectLaunchState,
-  ProjectInstallState,
-  ProjectProgressEvent,
   SafeMinecraftProfile
 } from '../shared/types';
 import { NORTHVALE_PROJECT_ID } from '../shared/types';
 import type { LauncherApi } from './launcherApi';
 import { fallbackManifest, getLauncherApi } from './launcherApi';
-import { DiscordIcon, GearIcon, TikTokIcon, YouTubeIcon } from './icons';
-import { resolveRendererAssetUrl } from './assets';
-import { ProjectContentDrawer } from './ProjectContentDrawer';
+import { DiscordIcon, TikTokIcon, YouTubeIcon } from './icons';
 import { LauncherHeader } from './LauncherHeader';
+import { ProjectPanel as ProjectPage } from './ProjectPanel';
 import './styles.css';
 
 type Screen = 'splash' | 'auth' | 'main';
 type Tab = 'project' | 'shop' | 'settings';
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed';
 type TransitionPhase = 'idle' | 'splash-exit' | 'auth-enter' | 'main-enter';
-type ProjectActionState = ProjectInstallState | 'checking';
 
 const routeSwitchDelayMs = 180;
 const routeTransitionDurationMs = 430;
-
-function formatLaunchProgress(progress: LaunchProgress): string {
-  const labels: Record<LaunchProgress['phase'], string> = {
-    AUTHENTICATING: 'AUTHENTICATING',
-    SYNCING: 'SYNCING',
-    CHECKING_RUNTIME: 'CHECKING RUNTIME',
-    DOWNLOADING_JAVA: 'DOWNLOADING JAVA',
-    INSTALLING_MINECRAFT: 'INSTALLING MINECRAFT',
-    INSTALLING_FORGE: 'INSTALLING FORGE',
-    DOWNLOADING_LIBRARIES: 'DOWNLOADING LIBRARIES',
-    LAUNCHING: 'LAUNCHING'
-  };
-  const percent = typeof progress.percent === 'number' ? ` ${Math.round(progress.percent)}%` : '';
-  return `${labels[progress.phase]}${percent}`;
-}
 
 const socialLinks = [
   { label: 'YouTube', href: 'https://www.youtube.com/@BeforeBedtimeProject', icon: <YouTubeIcon /> },
@@ -227,226 +204,6 @@ function AuthScreen({
         </label>
         {error ? <div className="auth-error">{error}</div> : null}
       </div>
-    </section>
-  );
-}
-
-function ProjectPanel({
-  api,
-  manifest,
-  setActiveTab
-}: {
-  api: LauncherApi;
-  manifest: LauncherManifest;
-  setActiveTab: (tab: Tab) => void;
-}) {
-  const project = manifest.projects[0];
-  const [galleryIndex, setGalleryIndex] = useState(0);
-  const [projectState, setProjectState] = useState<ProjectActionState>('checking');
-  const [launchState, setLaunchState] = useState<ProjectLaunchState>({ status: 'idle' });
-  const [status, setStatus] = useState('CHECKING');
-  const [busy, setBusy] = useState(false);
-  const [progressPercent, setProgressPercent] = useState<number | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerLayout, setDrawerLayout] = useState<ContentDrawerLayout>('overlay');
-  const [contentRevision, setContentRevision] = useState(0);
-  const visibleDots = [0, 1, 2];
-  const gallery = project.artwork.gallery.length ? project.artwork.gallery : fallbackManifest.projects[0].artwork.gallery;
-  const activeImage = resolveRendererAssetUrl(gallery[galleryIndex % gallery.length]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setGalleryIndex((index) => (index + 1) % gallery.length), 5200);
-    return () => window.clearInterval(timer);
-  }, [gallery.length]);
-
-  useEffect(
-    () => api.project.onProgress((progress: ProjectProgressEvent) => {
-      if (progress.projectId !== project.id) return;
-      setStatus(formatLaunchProgress(progress));
-      setProgressPercent(
-        typeof progress.percent === 'number'
-          ? Math.max(0, Math.min(100, Math.round(progress.percent)))
-          : null
-      );
-    }),
-    [api, project.id]
-  );
-
-  useEffect(() => {
-    let active = true;
-    void api.project.getLaunchState(project.id)
-      .then((state) => {
-        if (active) setLaunchState(state);
-      })
-      .catch(() => undefined);
-    const dispose = api.project.onLaunchState((state) => {
-      if (!state.projectId || state.projectId === project.id || state.status === 'idle') {
-        setLaunchState(state);
-      }
-    });
-    return () => {
-      active = false;
-      dispose();
-    };
-  }, [api, project.id]);
-
-  useEffect(() => {
-    if (launchState.status === 'running') {
-      setBusy(false);
-      setProgressPercent(null);
-      setStatus('RUNNING');
-    } else if (launchState.status === 'stopping') {
-      setBusy(false);
-      setProgressPercent(null);
-      setStatus('STOPPING');
-    } else if (launchState.status === 'idle' && projectState === 'ready' && (status === 'RUNNING' || status === 'STOPPING')) {
-      setBusy(false);
-      setProgressPercent(null);
-      setStatus(project.statusText);
-    }
-  }, [launchState.status, project.statusText, projectState, status]);
-
-  useEffect(() => {
-    let active = true;
-    setProjectState('checking');
-    setStatus('CHECKING');
-    setProgressPercent(null);
-    void api.project.getState(project.id)
-      .then((result) => {
-        if (!active) return;
-        setProjectState(result.state);
-        setStatus(
-          result.state === 'install'
-            ? 'NOT INSTALLED'
-            : result.state === 'update'
-              ? 'UPDATE !'
-              : project.statusText
-        );
-      })
-      .catch(() => {
-        if (active) setStatus('FAILED');
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, manifest.generatedAt, project.id, project.statusText]);
-
-  async function runProjectAction() {
-    if (launchState.status === 'running') {
-      setStatus('STOPPING');
-      await api.project.stop(project.id);
-      return;
-    }
-    if (busy || projectState === 'checking' || launchState.status === 'starting' || launchState.status === 'stopping') return;
-    if (projectState !== 'ready') {
-      setBusy(true);
-      setProgressPercent(0);
-      setStatus(projectState === 'install' ? 'INSTALLING' : 'UPDATING');
-      try {
-        await api.project.sync(project.id);
-        setContentRevision((value) => value + 1);
-        setProjectState('ready');
-        setStatus(project.statusText);
-        setProgressPercent(null);
-      } catch {
-        setStatus('FAILED');
-        setProgressPercent(null);
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
-    setBusy(true);
-    setProgressPercent(null);
-    setStatus('AUTHENTICATING');
-    const result = await api.project.launch(project.id);
-    if (result.ok) {
-      if (!result.value.pid) setStatus(project.statusText);
-    } else {
-      setStatus(result.error.message);
-    }
-    setProgressPercent(null);
-    setBusy(false);
-  }
-
-  const actionLabel = launchState.status === 'running' || launchState.status === 'stopping'
-    ? 'STOP'
-    : projectState === 'checking'
-    ? 'CHECKING'
-    : projectState === 'install'
-    ? 'INSTALL'
-    : projectState === 'update'
-      ? 'UPDATE'
-      : 'PLAY';
-  const actionText = busy ? status : actionLabel;
-  const visibleActionText = busy && progressPercent !== null ? `${progressPercent}%` : actionText;
-  const actionDisabled = launchState.status === 'stopping' || (busy && launchState.status !== 'running') || projectState === 'checking' || launchState.status === 'starting';
-
-  return (
-    <section className={`project-panel ${drawerOpen ? 'content-drawer-open' : ''} ${drawerLayout === 'expanded' ? 'content-drawer-expanded' : 'content-drawer-overlay'}`}>
-      <section className="project-board">
-        <div className="project-stage">
-          <img className="project-image" src={activeImage} alt={`${project.title} gallery image ${galleryIndex + 1}`} />
-          <div className="project-hero-copy">
-            <span className="project-eyebrow">NORTHVALE / SEASON 01</span>
-            <h1>เริ่มการผจญภัยแห่งนี้</h1>
-            <p>ความฝันหรือความจริงกันแน่ ?</p>
-          </div>
-          <div className="project-title">
-            <span>{project.title}</span>
-          </div>
-          <span className={`version-status ${status === 'FAILED' ? 'failed' : ''}`}>{status}</span>
-        </div>
-        <div className="project-actions">
-          <div className="project-strip" aria-label="Project selector">
-            <button className="project-arrow" type="button" aria-label="Previous project">‹</button>
-            <button className="project-pill" type="button">
-              <img src={resolveRendererAssetUrl(project.artwork.cover)} alt="" aria-hidden="true" />
-              <span>{project.title}</span>
-            </button>
-            <button className="project-arrow" type="button" aria-label="Next project">›</button>
-          </div>
-          <div className="left-controls">
-            <button className="play-button" type="button" onClick={runProjectAction} disabled={actionDisabled} aria-label={actionText}>
-              {progressPercent !== null ? (
-                <span className="play-progress" aria-hidden="true">
-                  <span className="play-progress-fill" style={{ width: `${progressPercent}%` }} />
-                </span>
-              ) : null}
-              <span className="play-content">
-                <span className="play-icon" aria-hidden="true">
-                  <svg viewBox="0 0 10 10"><path d="M3 2.2v5.6L7.5 5 3 2.2Z" /></svg>
-                </span>
-                <span className="play-label">{visibleActionText}</span>
-              </span>
-            </button>
-            <button className="settings-button" type="button" aria-label="Settings" onClick={() => setActiveTab('settings')}>
-              <GearIcon />
-            </button>
-          </div>
-          <div className="project-dots" aria-label="Gallery image count">
-            {visibleDots.map((dot) => (
-              <button
-                key={dot}
-                className={`project-dot ${dot === galleryIndex % 3 ? 'active' : ''}`}
-                type="button"
-                aria-label={`Gallery image ${dot + 1}`}
-                onClick={() => setGalleryIndex(dot)}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-      <ProjectContentDrawer
-        api={api}
-        projectId={project.id}
-        open={drawerOpen}
-        layout={drawerLayout}
-        refreshKey={contentRevision}
-        onOpenChange={setDrawerOpen}
-        onLayoutChange={setDrawerLayout}
-      />
     </section>
   );
 }
@@ -720,7 +477,7 @@ function MainShell({
           onUpdateAction={runUpdateAction}
         />
         <main className="launcher-content">
-          {activeTab === 'project' ? <ProjectPanel api={api} manifest={manifest} setActiveTab={setActiveTab} /> : null}
+          {activeTab === 'project' ? <ProjectPage api={api} manifest={manifest} /> : null}
           {activeTab === 'shop' ? <section className="shop-panel" aria-label="Shop" /> : null}
           {activeTab === 'settings' ? (
             <SettingsPanel

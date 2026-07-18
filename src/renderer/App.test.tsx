@@ -117,6 +117,13 @@ function makeApi(existingProfile: typeof profile | null = null): LauncherApi {
         launchStateListener?.(state);
         return state;
       }),
+      content: {
+        list: vi.fn(async () => ({ entries: [], classificationAvailable: true })),
+        importFiles: vi.fn(async () => ({ status: 'complete' as const, imported: [], conflicts: [], rejected: [] })),
+        trash: vi.fn(async () => undefined),
+        setEnabled: vi.fn(async () => undefined),
+        openFolder: vi.fn(async () => undefined)
+      },
       onProgress: vi.fn(() => () => undefined)
       ,
       onLaunchState: vi.fn((listener) => {
@@ -177,7 +184,7 @@ describe('App', () => {
     expect(screen.queryByRole('img', { name: 'BeforeBedtime' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
 
     const topbarLogo = screen.getByTestId('brand-logo');
     expect(topbarLogo).toHaveAttribute('src', expect.stringContaining('/assets/images/logos/BBT.png'));
@@ -189,7 +196,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
 
     const projectNavigation = screen.getByRole('navigation', { name: 'Main tabs' });
     await user.click(within(projectNavigation).getByRole('button', { name: 'Project' }));
@@ -208,6 +215,29 @@ describe('App', () => {
     expect(api.project.getState).toHaveBeenCalledTimes(stateCalls);
     expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
     expect(screen.queryByText('NORTHVALE / SEASON 02')).not.toBeInTheDocument();
+  });
+
+  it('presents the approved Northvale story and opens project content from the hero', async () => {
+    const user = userEvent.setup();
+    const api = makeApi(profile);
+    render(<App api={api} />);
+
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+
+    expect(await screen.findByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'เริ่มการผจญภัยแห่งนี้' })).toBeInTheDocument();
+    expect(screen.getByText('ความฝันหรือความจริงกันแน่ ?')).toBeInTheDocument();
+    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /manage content/i }));
+
+    expect(api.window?.setContentDrawerOpen).toHaveBeenCalledWith(true);
+    expect(screen.getByRole('complementary', { name: /content library/i })).toHaveAttribute('aria-hidden', 'false');
+    expect(screen.getByText('NORTHVALE LIBRARY')).toBeInTheDocument();
+    expect(screen.getByText('SEASON 01 · MANAGE PROJECT CONTENT')).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'MODS 0' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'RESOURCE PACKS 0' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'SHADERS 0' })).toBeInTheDocument();
   });
 
   it('starts only from Click to start', async () => {
@@ -243,7 +273,7 @@ describe('App', () => {
     });
 
     expect(container.querySelector('.main.route-enter')).toBeInTheDocument();
-    expect(screen.getAllByText('Northvale')).toHaveLength(2);
+    expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(320);
@@ -257,7 +287,7 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
 
-    expect(await screen.findAllByText('Northvale')).toHaveLength(2);
+    expect(await screen.findByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /login to microsoft/i })).not.toBeInTheDocument();
   });
 
@@ -287,7 +317,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(within(screen.getByRole('navigation', { name: 'Main tabs' })).getByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('button', { name: /^Logout$/i }));
 
@@ -309,7 +339,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(await screen.findByRole('button', { name: /^play$/i }));
     act(() => {
       progressListener?.({
@@ -337,7 +367,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(await screen.findByRole('button', { name: /^play$/i }));
     act(() => {
       progressListener?.({
@@ -347,7 +377,7 @@ describe('App', () => {
       });
     });
 
-    expect(await screen.findAllByText('CHECKING RUNTIME')).toHaveLength(2);
+    expect(await screen.findByText('CHECKING RUNTIME')).toBeInTheDocument();
     expect(screen.queryByText(/DOWNLOADING JAVA/)).not.toBeInTheDocument();
   });
 
@@ -376,7 +406,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(await screen.findByRole('button', { name: /^play$/i }));
 
     expect(await screen.findByRole('button', { name: /^stop$/i })).toBeInTheDocument();
@@ -400,7 +430,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     act(() => {
       updaterListener?.({ status: 'error', message: 'GitHub offline' });
     });
@@ -432,14 +462,14 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    expect(await screen.findByText('NOT INSTALLED')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^install$/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^install$/i }));
 
     expect(api.project.sync).toHaveBeenCalledWith('northvale');
     expect(api.project.launch).not.toHaveBeenCalled();
     expect(await screen.findByRole('button', { name: /^play$/i })).toBeInTheDocument();
-    expect(screen.getByText('UP TO DATE')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^play$/i })).toBeInTheDocument();
   });
 
   it('does not flash INSTALL while rechecking after returning from settings', async () => {
@@ -469,14 +499,14 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: /^play$/i })).toBeInTheDocument();
   });
 
-  it('shows UPDATE and UPDATE ! when managed files differ', async () => {
+  it('shows UPDATE when managed files differ', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
     api.project.getState = vi.fn(async () => ({ state: 'update' as const, missing: 1, changed: 2, stale: 1 }));
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    expect(await screen.findByText('UPDATE !')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^update$/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^update$/i }));
 
@@ -499,8 +529,7 @@ describe('App', () => {
     const { container } = render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findByText('UPDATE !');
-    await user.click(screen.getByRole('button', { name: /^update$/i }));
+    await user.click(await screen.findByRole('button', { name: /^update$/i }));
     act(() => {
       progressListener?.({
         projectId: 'northvale',
@@ -511,7 +540,10 @@ describe('App', () => {
     });
 
     expect(await screen.findByText('SYNCING 42%')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /syncing 42%/i })).toBeDisabled();
+    const syncingAction = screen.getByRole('button', { name: /syncing 42%/i });
+    expect(syncingAction).toBeDisabled();
+    expect(within(syncingAction).getByText('SYNCING 42%')).toBeInTheDocument();
+    expect(screen.getAllByText('SYNCING 42%')).toHaveLength(1);
     expect(container.querySelector('.play-progress-fill')).toHaveStyle({ width: '42%' });
   });
 
@@ -527,7 +559,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    expect(await screen.findByText('UPDATE !')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^update$/i })).toBeInTheDocument();
 
     act(() => {
       progressListener?.({
@@ -538,7 +570,7 @@ describe('App', () => {
       });
     });
 
-    expect(screen.getByText('UPDATE !')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^update$/i })).toBeInTheDocument();
     expect(screen.queryByText('DOWNLOADING JAVA 88%')).not.toBeInTheDocument();
   });
 
@@ -567,7 +599,7 @@ describe('App', () => {
     await user.click(screen.getByLabelText(/accept the terms/i));
     await user.click(screen.getByRole('button', { name: /login to microsoft/i }));
 
-    expect(await screen.findAllByText('Northvale')).toHaveLength(2);
+    expect(await screen.findByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Project$/i })).toHaveClass('active');
   });
 
@@ -576,7 +608,7 @@ describe('App', () => {
     render(<App api={makeApi(profile)} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(within(screen.getByRole('navigation', { name: 'Main tabs' })).getByRole('button', { name: 'Settings' }));
 
     const skin = await screen.findByAltText('Zlevyn Minecraft skin');
@@ -654,10 +686,9 @@ describe('App', () => {
     const projectImageRule = css.match(/\.project-image\s*\{([^}]*)\}/s)?.[1] || '';
     const splashExitRule = css.match(/\.splash\.is-exiting \.splash-inner\s*\{([^}]*)\}/s)?.[1] || '';
     const mainEnterShellRule = css.match(/\.main\.route-enter \.launcher-shell\s*\{([^}]*)\}/s)?.[1] || '';
-    const projectActionsRule = css.match(/\.project-actions\s*\{([^}]*)\}/s)?.[1] || '';
-    const leftControlsRule = css.match(/\.left-controls\s*\{([^}]*)\}/s)?.[1] || '';
+    const projectBoardRule = css.match(/\.project-board\s*\{([^}]*)\}/s)?.[1] || '';
+    const projectHeroActionsRule = css.match(/\.project-hero-actions\s*\{([^}]*)\}/s)?.[1] || '';
     const projectDotsRule = css.match(/\.project-dots\s*\{([^}]*)\}/s)?.[1] || '';
-    const projectStripRule = css.match(/\.project-strip\s*\{([^}]*)\}/s)?.[1] || '';
     const settingsPanelRule = css.match(/\.settings-panel\s*\{([^}]*)\}/s)?.[1] || '';
     const settingsLayoutRule = css.match(/\.settings-layout\s*\{([^}]*)\}/s)?.[1] || '';
     const oldSettingsSpanOverride = css.match(/\.directory-card,\s*\.display-card,\s*\.memory-card\s*\{([^}]*)\}/s)?.[1] || '';
@@ -677,19 +708,17 @@ describe('App', () => {
     expect(projectPanelRule).toContain('grid-template-rows: minmax(0, 1fr)');
     expect(projectPanelRule).toContain('position: relative');
     expect(projectPanelRule).toContain('overflow: hidden');
-    expect(projectPanelBeforeRule).toContain('linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px)');
+    expect(projectPanelBeforeRule).toContain('display: none');
     expect(projectPanelBeforeRule).not.toContain('animation');
     expect(projectStageAfterRule).not.toContain('linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px)');
     expect(projectPanelRule).not.toContain('58px');
-    expect(projectActionsRule).toContain('position: relative');
-    expect(projectActionsRule).toContain('grid-template-columns: 1fr auto 1fr');
-    expect(leftControlsRule).toContain('grid-column: 3');
-    expect(leftControlsRule).toContain('justify-self: end');
+    expect(projectBoardRule).toContain('padding: 24px');
+    expect(projectStageRule).toContain('height: 100%');
+    expect(projectStageRule).toContain('border-radius: 22px');
+    expect(projectHeroActionsRule).toContain('display: flex');
     expect(projectDotsRule).toContain('position: absolute');
+    expect(projectDotsRule).toContain('bottom: 24px');
     expect(projectDotsRule).toContain('animation: project-dots-in');
-    expect(projectStripRule).toContain('grid-column: 1');
-    expect(projectStripRule).toContain('justify-self: start');
-    expect(projectStripRule).not.toContain('border-top');
     expect(settingsPanelRule).toContain('clamp(34px, 4vw, 78px)');
     expect(settingsLayoutRule).toContain('grid-template-areas');
     expect(settingsLayoutRule).toContain('minmax(520px, 1fr)');
@@ -718,7 +747,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(within(screen.getByRole('navigation', { name: 'Main tabs' })).getByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('checkbox', { name: /fullscreen/i }));
 
@@ -748,7 +777,7 @@ describe('App', () => {
     render(<App api={makeApi(profile)} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(within(screen.getByRole('navigation', { name: 'Main tabs' })).getByRole('button', { name: 'Settings' }));
 
     expect(screen.queryByRole('spinbutton', { name: /window width/i })).not.toBeInTheDocument();
@@ -791,7 +820,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(within(screen.getByRole('navigation', { name: 'Main tabs' })).getByRole('button', { name: 'Settings' }));
 
     const directoryInput = screen.getByLabelText('App Directory');
@@ -816,7 +845,7 @@ describe('App', () => {
     render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
-    await screen.findAllByText('Northvale');
+    await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(within(screen.getByRole('navigation', { name: 'Main tabs' })).getByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('button', { name: /^Save$/i }));
 
