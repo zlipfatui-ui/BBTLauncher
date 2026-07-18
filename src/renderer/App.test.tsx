@@ -183,6 +183,33 @@ describe('App', () => {
     expect(topbarLogo).toHaveAttribute('src', expect.stringContaining('/assets/images/logos/BBT.png'));
   });
 
+  it('shows Season 2 as a disabled coming-soon project without changing the live project', async () => {
+    const user = userEvent.setup();
+    const api = makeApi(profile);
+    render(<App api={api} />);
+
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+    await screen.findAllByText('Northvale');
+
+    const projectNavigation = screen.getByRole('navigation', { name: 'Main tabs' });
+    await user.click(within(projectNavigation).getByRole('button', { name: 'Project' }));
+
+    const projectMenu = screen.getByRole('menu', { name: 'Project seasons' });
+    expect(within(projectMenu).getByText('NORTHVALE')).toBeInTheDocument();
+    expect(within(projectMenu).getByText(/SEASON 01/)).toBeInTheDocument();
+
+    const seasonTwo = within(projectMenu).getByRole('menuitem', { name: /coming soon season 02/i });
+    expect(seasonTwo).toBeDisabled();
+    expect(seasonTwo).toHaveAttribute('aria-disabled', 'true');
+
+    const stateCalls = vi.mocked(api.project.getState).mock.calls.length;
+    fireEvent.click(seasonTwo);
+
+    expect(api.project.getState).toHaveBeenCalledTimes(stateCalls);
+    expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
+    expect(screen.queryByText('NORTHVALE / SEASON 02')).not.toBeInTheDocument();
+  });
+
   it('starts only from Click to start', async () => {
     const user = userEvent.setup();
     const { container } = render(<App api={makeApi()} />);
@@ -583,46 +610,35 @@ describe('App', () => {
     expect(splashRule).not.toContain('-webkit-app-region: drag');
     expect(authRule).not.toContain('-webkit-app-region: drag');
     expect(topbarRule).not.toContain('-webkit-app-region: drag');
-    expect(tabsRule).toContain('display: grid');
-    expect(tabsRule).toContain('grid-template-columns: repeat(3, 1fr)');
-    expect(tabsRule).toContain('position: absolute');
-    expect(tabsRule).toContain('left: 50%');
-    expect(tabsRule).toContain('transform: translate(-50%, -50%)');
-    expect(tabsRule).toContain('z-index: 1001');
+    expect(tabsRule).toContain('display: flex');
+    expect(tabsRule).toContain('align-items: stretch');
     expect(tabsRule).toContain('-webkit-app-region: no-drag');
-    expect(tabsRule).not.toContain('gap:');
-    expect(tabRule).toContain('width: 100%');
     expect(tabRule).toContain('-webkit-app-region: no-drag');
   });
 
-  it('centers the main tabs and gallery dots on the same visual axis', () => {
+  it('keeps the connected header proportional with a flexible drag region', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
     const topbarRule = css.match(/\.topbar\s*\{([^}]*)\}/s)?.[1] || '';
     const tabsRule = css.match(/\.tabs\s*\{([^}]*)\}/s)?.[1] || '';
-    const projectActionsRule = css.match(/\.project-actions\s*\{([^}]*)\}/s)?.[1] || '';
-    const projectDotsRule = css.match(/\.project-dots\s*\{([^}]*)\}/s)?.[1] || '';
+    const pickerRule = css.match(/\.project-picker\s*\{([^}]*)\}/s)?.[1] || '';
+    const topbarDragRule = css.match(/\.topbar-drag-region\s*\{([^}]*)\}/s)?.[1] || '';
+    const topbarActionRule = css.match(/\.topbar-action\s*\{([^}]*)\}/s)?.[1] || '';
 
     expect(topbarRule).toContain('position: relative');
-    expect(tabsRule).toContain('position: absolute');
-    expect(tabsRule).toContain('left: 50%');
-    expect(tabsRule).toContain('transform: translate(-50%, -50%)');
-    expect(projectActionsRule).toContain('position: relative');
-    expect(projectDotsRule).toContain('position: absolute');
-    expect(projectDotsRule).toContain('left: 50%');
-    expect(projectDotsRule).toContain('transform: translateX(-50%)');
+    expect(topbarRule).toContain('grid-template-columns: auto minmax(0, 1fr) auto');
+    expect(tabsRule).toContain('display: flex');
+    expect(pickerRule).toContain('width: 302px');
+    expect(topbarDragRule).toContain('flex: 1 1 auto');
+    expect(topbarDragRule).toContain('-webkit-app-region: drag');
+    expect(topbarActionRule).toContain('width: 112px');
   });
 
   it('keeps the launcher update action clear of fixed window controls', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
     const topbarRule = css.match(/\.topbar\s*\{([^}]*)\}/s)?.[1] || '';
-    const spacerRule = css.match(/\.topbar-spacer\s*\{([^}]*)\}/s)?.[1] || '';
     const updateButtonRule = css.match(/\.update-button\s*\{([^}]*)\}/s)?.[1] || '';
 
-    expect(topbarRule).toContain('padding: 0 calc(20px + var(--window-controls-clearance)) 0 20px');
-    expect(spacerRule).toContain('position: relative');
-    expect(spacerRule).toContain('z-index: 1001');
-    expect(spacerRule).toContain('justify-content: flex-end');
-    expect(spacerRule).toContain('-webkit-app-region: no-drag');
+    expect(topbarRule).toContain('padding: 0 calc(var(--window-controls-clearance) + 8px) 0 14px');
     expect(updateButtonRule).toContain('display: inline-flex');
     expect(updateButtonRule).toContain('align-items: center');
     expect(updateButtonRule).toContain('justify-content: center');

@@ -17,6 +17,7 @@ import { fallbackManifest, getLauncherApi } from './launcherApi';
 import { DiscordIcon, GearIcon, TikTokIcon, YouTubeIcon } from './icons';
 import { resolveRendererAssetUrl } from './assets';
 import { ProjectContentDrawer } from './ProjectContentDrawer';
+import { LauncherHeader } from './LauncherHeader';
 import './styles.css';
 
 type Screen = 'splash' | 'auth' | 'main';
@@ -27,7 +28,6 @@ type ProjectActionState = ProjectInstallState | 'checking';
 
 const routeSwitchDelayMs = 180;
 const routeTransitionDurationMs = 430;
-const appLogoUrl = resolveRendererAssetUrl('/assets/images/logos/BBT.png');
 
 function formatLaunchProgress(progress: LaunchProgress): string {
   const labels: Record<LaunchProgress['phase'], string> = {
@@ -231,57 +231,6 @@ function AuthScreen({
   );
 }
 
-function updateActionLabel(updateState: LauncherUpdateState): string | null {
-  if (updateState.status === 'available') return 'DOWNLOADING UPDATE';
-  if (updateState.status === 'downloading') return `${Math.round(updateState.percent || 0)}%`;
-  if (updateState.status === 'downloaded') return 'RESTART TO UPDATE';
-  return null;
-}
-
-function Topbar({
-  activeTab,
-  setActiveTab,
-  updateState,
-  onUpdateAction
-}: {
-  activeTab: Tab;
-  setActiveTab: (tab: Tab) => void;
-  updateState: LauncherUpdateState;
-  onUpdateAction: () => void;
-}) {
-  const label = updateActionLabel(updateState);
-  return (
-    <header className="topbar">
-      <div className="brand">
-        <img className="brand-logo" src={appLogoUrl} alt="" aria-hidden="true" data-testid="brand-logo" />
-        <div className="brand-name">
-          <strong>BeforeBedtime</strong>
-          <span>Launcher</span>
-        </div>
-      </div>
-      <nav className="tabs" aria-label="Main tabs">
-        {(['project', 'shop', 'settings'] as const).map((tab) => (
-          <button className={`tab ${activeTab === tab ? 'active' : ''}`} key={tab} type="button" onClick={() => setActiveTab(tab)}>
-            {tab === 'project' ? 'Project' : tab === 'shop' ? 'Shop' : 'Settings'}
-          </button>
-        ))}
-      </nav>
-      <div className="topbar-spacer">
-        {label ? (
-          <button
-            className="update-button"
-            type="button"
-            disabled={updateState.status === 'available' || updateState.status === 'downloading'}
-            onClick={onUpdateAction}
-          >
-            {label}
-          </button>
-        ) : null}
-      </div>
-    </header>
-  );
-}
-
 function ProjectPanel({
   api,
   manifest,
@@ -439,6 +388,11 @@ function ProjectPanel({
       <section className="project-board">
         <div className="project-stage">
           <img className="project-image" src={activeImage} alt={`${project.title} gallery image ${galleryIndex + 1}`} />
+          <div className="project-hero-copy">
+            <span className="project-eyebrow">NORTHVALE / SEASON 01</span>
+            <h1>เริ่มการผจญภัยแห่งนี้</h1>
+            <p>ความฝันหรือความจริงกันแน่ ?</p>
+          </div>
           <div className="project-title">
             <span>{project.title}</span>
           </div>
@@ -758,7 +712,13 @@ function MainShell({
   return (
     <section className={`screen main ${isEntering ? 'route-enter' : ''}`}>
       <div className="launcher-shell">
-        <Topbar activeTab={activeTab} setActiveTab={setActiveTab} updateState={updateState} onUpdateAction={runUpdateAction} />
+        <LauncherHeader
+          activeTab={activeTab}
+          project={manifest.projects[0] ?? fallbackManifest.projects[0]}
+          updateState={updateState}
+          onTabChange={setActiveTab}
+          onUpdateAction={runUpdateAction}
+        />
         <main className="launcher-content">
           {activeTab === 'project' ? <ProjectPanel api={api} manifest={manifest} setActiveTab={setActiveTab} /> : null}
           {activeTab === 'shop' ? <section className="shop-panel" aria-label="Shop" /> : null}
