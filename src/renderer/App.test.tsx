@@ -8,12 +8,12 @@ import type { LauncherApi } from './launcherApi';
 import type {
   AuthErrorCode,
   IpcResult,
-  LaunchProgress,
   LaunchResult,
   LauncherManifest,
   LauncherSettings,
   LauncherUpdateState,
   ProjectLaunchState,
+  ProjectProgressEvent,
   ProjectStateResult,
   SyncResult
 } from '../shared/types';
@@ -271,7 +271,7 @@ describe('App', () => {
   it('shows managed Java launch progress from the main process', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
-    let progressListener: ((progress: LaunchProgress) => void) | undefined;
+    let progressListener: ((progress: ProjectProgressEvent) => void) | undefined;
     api.project.onProgress = vi.fn((listener) => {
       progressListener = listener;
       return () => undefined;
@@ -286,6 +286,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: /^play$/i }));
     act(() => {
       progressListener?.({
+        projectId: 'northvale',
         phase: 'DOWNLOADING_JAVA',
         percent: 42,
         message: 'Downloading Java 17'
@@ -298,7 +299,7 @@ describe('App', () => {
   it('shows CHECKING RUNTIME without claiming Java is downloading', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
-    let progressListener: ((progress: LaunchProgress) => void) | undefined;
+    let progressListener: ((progress: ProjectProgressEvent) => void) | undefined;
     api.project.onProgress = vi.fn((listener) => {
       progressListener = listener;
       return () => undefined;
@@ -313,6 +314,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: /^play$/i }));
     act(() => {
       progressListener?.({
+        projectId: 'northvale',
         phase: 'CHECKING_RUNTIME',
         message: 'Checking cached runtime'
       });
@@ -458,7 +460,7 @@ describe('App', () => {
   it('shows sync progress inside the install/update action', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
-    let progressListener: ((progress: LaunchProgress) => void) | undefined;
+    let progressListener: ((progress: ProjectProgressEvent) => void) | undefined;
     api.project.getState = vi.fn(async () => ({ state: 'update' as const, missing: 1, changed: 0, stale: 0 }));
     api.project.onProgress = vi.fn((listener) => {
       progressListener = listener;
@@ -474,6 +476,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /^update$/i }));
     act(() => {
       progressListener?.({
+        projectId: 'northvale',
         phase: 'SYNCING',
         percent: 42,
         message: 'Downloading Northvale files'
@@ -483,6 +486,33 @@ describe('App', () => {
     expect(await screen.findByText('SYNCING 42%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /syncing 42%/i })).toBeDisabled();
     expect(container.querySelector('.play-progress-fill')).toHaveStyle({ width: '42%' });
+  });
+
+  it('ignores progress events from a different project', async () => {
+    const user = userEvent.setup();
+    const api = makeApi(profile);
+    let progressListener: ((progress: ProjectProgressEvent) => void) | undefined;
+    api.project.getState = vi.fn(async () => ({ state: 'update' as const, missing: 1, changed: 0, stale: 0 }));
+    api.project.onProgress = vi.fn((listener) => {
+      progressListener = listener;
+      return () => undefined;
+    });
+    render(<App api={api} />);
+
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+    expect(await screen.findByText('UPDATE !')).toBeInTheDocument();
+
+    act(() => {
+      progressListener?.({
+        projectId: 'season-two',
+        phase: 'DOWNLOADING_JAVA',
+        percent: 88,
+        message: 'Downloading another project runtime'
+      });
+    });
+
+    expect(screen.getByText('UPDATE !')).toBeInTheDocument();
+    expect(screen.queryByText('DOWNLOADING JAVA 88%')).not.toBeInTheDocument();
   });
 
   it('shows working window controls on the splash screen', async () => {

@@ -8,6 +8,7 @@ import type {
   LauncherSettings,
   ProjectLaunchState,
   ProjectInstallState,
+  ProjectProgressEvent,
   SafeMinecraftProfile
 } from '../shared/types';
 import { NORTHVALE_PROJECT_ID } from '../shared/types';
@@ -310,7 +311,8 @@ function ProjectPanel({
   }, [gallery.length]);
 
   useEffect(
-    () => api.project.onProgress((progress) => {
+    () => api.project.onProgress((progress: ProjectProgressEvent) => {
+      if (progress.projectId !== project.id) return;
       setStatus(formatLaunchProgress(progress));
       setProgressPercent(
         typeof progress.percent === 'number'
@@ -318,7 +320,7 @@ function ProjectPanel({
           : null
       );
     }),
-    [api]
+    [api, project.id]
   );
 
   useEffect(() => {

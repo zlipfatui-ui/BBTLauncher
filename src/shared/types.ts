@@ -158,6 +158,10 @@ export interface LaunchProgress {
   message: string;
 }
 
+export interface ProjectProgressEvent extends LaunchProgress {
+  projectId: string;
+}
+
 export type ProjectLaunchStatus = 'idle' | 'starting' | 'running' | 'stopping';
 
 export interface ProjectLaunchState {

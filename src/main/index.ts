@@ -29,6 +29,7 @@ import {
   trashProjectContent
 } from './services/project-content.js';
 import { createContentDrawerWindowController } from './services/content-drawer-window.js';
+import { createProjectProgressEvent } from './services/project-progress.js';
 import electronUpdater from 'electron-updater';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -231,13 +232,13 @@ function registerIpc() {
       manifest,
       baseUrl: manifestBaseUrl,
       onProgress: (progress) =>
-        event.sender.send('project:progress', {
+        event.sender.send('project:progress', createProjectProgressEvent(projectId, {
           phase: 'SYNCING',
           percent: progress.totalBytes
             ? Math.min(100, Math.round((progress.downloadedBytes / progress.totalBytes) * 100))
             : 100,
           message: `Downloading ${progress.file}`
-        })
+        }))
     });
   });
 
@@ -262,15 +263,16 @@ function registerIpc() {
               manifest,
               baseUrl: manifestBaseUrl,
               onProgress: (progress) =>
-                event.sender.send('project:progress', {
+                event.sender.send('project:progress', createProjectProgressEvent(projectId, {
                   phase: 'SYNCING',
                   percent: progress.totalBytes
                     ? Math.min(100, Math.round((progress.downloadedBytes / progress.totalBytes) * 100))
                     : 100,
                   message: `Downloading ${progress.file}`
-                })
+                }))
             }),
-          onProgress: (progress) => event.sender.send('project:progress', progress)
+          onProgress: (progress) =>
+            event.sender.send('project:progress', createProjectProgressEvent(projectId, progress))
         })
       );
     })

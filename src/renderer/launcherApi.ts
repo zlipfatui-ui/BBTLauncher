@@ -2,7 +2,6 @@ import type {
   AuthState,
   ContentDrawerLayout,
   IpcResult,
-  LaunchProgress,
   LaunchResult,
   LauncherUpdateState,
   LauncherManifest,
@@ -11,6 +10,7 @@ import type {
   ProjectContentImportResult,
   ProjectContentKind,
   ProjectContentListResult,
+  ProjectProgressEvent,
   ProjectStateResult,
   SafeMinecraftProfile,
   SyncResult
@@ -44,7 +44,7 @@ export interface LauncherApi {
       setEnabled(projectId: string, kind: ProjectContentKind, relativePath: string, enabled: boolean): Promise<void>;
       openFolder(projectId: string, kind: ProjectContentKind): Promise<void>;
     };
-    onProgress(listener: (progress: LaunchProgress) => void): () => void;
+    onProgress(listener: (progress: ProjectProgressEvent) => void): () => void;
     onLaunchState(listener: (state: ProjectLaunchState) => void): () => void;
   };
   updater: {

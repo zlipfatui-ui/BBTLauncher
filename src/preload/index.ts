@@ -2,10 +2,10 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   ContentDrawerLayout,
   LauncherSettings,
-  LaunchProgress,
   LauncherUpdateState,
   ProjectContentKind,
-  ProjectLaunchState
+  ProjectLaunchState,
+  ProjectProgressEvent
 } from '../shared/types.js';
 
 contextBridge.exposeInMainWorld('bbtLauncher', {
@@ -45,8 +45,8 @@ contextBridge.exposeInMainWorld('bbtLauncher', {
       openFolder: (projectId: string, kind: ProjectContentKind) =>
         ipcRenderer.invoke('project:content:openFolder', projectId, kind)
     },
-    onProgress: (callback: (progress: LaunchProgress) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, progress: LaunchProgress) => callback(progress);
+    onProgress: (callback: (progress: ProjectProgressEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: ProjectProgressEvent) => callback(progress);
       ipcRenderer.on('project:progress', listener);
       return () => ipcRenderer.removeListener('project:progress', listener);
     },
