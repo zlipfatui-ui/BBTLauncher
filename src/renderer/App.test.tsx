@@ -698,6 +698,11 @@ describe('App', () => {
     const windowChromeRule = css.match(/\.window-chrome\s*\{([^}]*)\}/s)?.[1] || '';
     const controlsRule = css.match(/\.window-controls\s*\{([^}]*)\}/s)?.[1] || '';
     const controlButtonRule = css.match(/\.window-controls button\s*\{([^}]*)\}/s)?.[1] || '';
+    const maximizeIconRule = css.match(/\.maximize-icon\s*\{([^}]*)\}/s)?.[1] || '';
+    const restoreIconRule = css.match(/\.maximize-icon\.restore\s*\{([^}]*)\}/s)?.[1] || '';
+    const restoreLayersRule = css.match(
+      /\.maximize-icon\.restore::before,\s*\.maximize-icon\.restore::after\s*\{([^}]*)\}/s
+    )?.[1] || '';
     const dragRule = css.match(/\.window-drag-region\s*\{([^}]*)\}/s)?.[1] || '';
     const splashRule = css.match(/\.splash\s*\{([^}]*)\}/s)?.[1] || '';
     const authRule = css.match(/\.auth\s*\{([^}]*)\}/s)?.[1] || '';
@@ -717,6 +722,14 @@ describe('App', () => {
     expect(controlsRule).toContain('position: static');
     expect(controlsRule).toContain('-webkit-app-region: no-drag');
     expect(controlButtonRule).toContain('-webkit-app-region: no-drag');
+    expect(maximizeIconRule).toContain('position: relative');
+    expect(maximizeIconRule).toContain('box-sizing: border-box');
+    expect(restoreIconRule).toContain('width: 12px');
+    expect(restoreIconRule).toContain('height: 12px');
+    expect(restoreIconRule).toContain('border: 0');
+    expect(restoreLayersRule).toContain('width: 8px');
+    expect(restoreLayersRule).toContain('height: 8px');
+    expect(restoreLayersRule).toContain('box-sizing: border-box');
     expect(splashRule).not.toContain('-webkit-app-region: drag');
     expect(authRule).not.toContain('-webkit-app-region: drag');
     expect(topbarRule).not.toContain('-webkit-app-region: drag');
