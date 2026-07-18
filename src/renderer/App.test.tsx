@@ -725,6 +725,15 @@ describe('App', () => {
     expect(oldSettingsSpanOverride).not.toContain('grid-column');
   });
 
+  it('uses Thai-safe typography for the project headline', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
+    const heroHeadingRule = css.match(/\.project-hero-copy h1\s*\{([^}]*)\}/s)?.[1] || '';
+
+    expect(heroHeadingRule).toContain('"Leelawadee UI"');
+    expect(heroHeadingRule).toContain('letter-spacing: 0');
+    expect(heroHeadingRule).toContain('max-width: 680px');
+  });
+
   it('keeps the content drawer neutral and free of decorative glow', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/project-content-drawer.css'), 'utf8');
     const panelRule = css.match(/\.project-panel\s*\{([^}]*)\}/s)?.[1] || '';
