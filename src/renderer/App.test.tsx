@@ -725,6 +725,20 @@ describe('App', () => {
     expect(oldSettingsSpanOverride).not.toContain('grid-column');
   });
 
+  it('keeps the content drawer neutral and free of decorative glow', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/renderer/project-content-drawer.css'), 'utf8');
+    const panelRule = css.match(/\.project-panel\s*\{([^}]*)\}/s)?.[1] || '';
+    const drawerHeaderRule = css.match(/\.content-drawer-header\s*\{([^}]*)\}/s)?.[1] || '';
+    const drawerFooterRule = css.match(/\.content-drawer-footer\s*\{([^}]*)\}/s)?.[1] || '';
+    const toggleFocusRule = css.match(/\.content-toggle:hover,\s*\.content-toggle:focus-visible\s*\{([^}]*)\}/s)?.[1] || '';
+
+    expect(panelRule).toContain('--content-drawer-width: clamp(420px, 36vw, 480px)');
+    expect(drawerHeaderRule).toContain('border-bottom: 0');
+    expect(drawerFooterRule).toContain('border-top: 0');
+    expect(toggleFocusRule).not.toContain('box-shadow');
+    expect(css).not.toMatch(/content-(?:drawer|toggle)-star/);
+  });
+
   it('keeps route transition animation lightweight enough for Electron', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
     const transitionKeyframes = [

@@ -419,7 +419,11 @@
 .content-toggle:focus-visible {
   outline: none;
   border-color: #8a8a8a;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+
+.content-toggle:focus-visible {
+  outline: 1px solid rgba(196, 228, 255, 0.58);
+  outline-offset: 2px;
 }
 
 .content-delete {
