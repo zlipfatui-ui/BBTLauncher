@@ -193,11 +193,11 @@ function AuthScreen({
           </span>
           <span>
             I accept the{' '}
-            <button type="button" className="link-button" onClick={() => api.shell.openExternal('https://beforebedtime.local/terms')}>
+            <button type="button" className="link-button" onClick={() => api.shell.openExternal('https://beforebedtime.net/launcher/terms')}>
               Terms of Service
             </button>{' '}
             and{' '}
-            <button type="button" className="link-button" onClick={() => api.shell.openExternal('https://beforebedtime.local/privacy')}>
+            <button type="button" className="link-button" onClick={() => api.shell.openExternal('https://beforebedtime.net/launcher/privacy')}>
               Privacy Policy
             </button>
           </span>

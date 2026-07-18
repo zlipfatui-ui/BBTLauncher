@@ -254,6 +254,19 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: /login to microsoft/i })).toBeInTheDocument();
   });
 
+  it('opens the published Terms of Service and Privacy Policy pages', async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    render(<App api={api} />);
+
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+    await user.click(await screen.findByRole('button', { name: 'Terms of Service' }));
+    expect(api.shell.openExternal).toHaveBeenCalledWith('https://beforebedtime.net/launcher/terms');
+
+    await user.click(screen.getByRole('button', { name: 'Privacy Policy' }));
+    expect(api.shell.openExternal).toHaveBeenCalledWith('https://beforebedtime.net/launcher/privacy');
+  });
+
   it('plays only a lightweight zoom transition from splash into the main launcher', async () => {
     vi.useFakeTimers();
     const api = makeApi(profile);
