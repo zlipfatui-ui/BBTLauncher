@@ -15,9 +15,11 @@ Correct the six launcher UI regressions identified from the 0.2.0 screenshots wi
 
 ## Application Chrome
 
-- Keep Minimize, Maximize, and Close fixed above the connected header.
-- Window controls use a higher stacking layer than the topbar and remain outside draggable regions.
-- The header continues to reserve enough space for the controls at supported window sizes.
+- Minimize, Maximize, and Close must always be visible and clickable on Project, Shop, and Settings.
+- The same controls remain available while an update status or `RESTART TO UPDATE` action is present.
+- Keep the controls fixed above the connected header; `window-chrome` must use a higher stacking layer than `topbar`.
+- Window controls remain outside draggable regions and each button keeps its accessible label.
+- The header reserves enough right-side space so navigation and update actions never sit underneath the controls at supported window sizes.
 
 ## Content Drawer
 
@@ -44,6 +46,6 @@ Correct the six launcher UI regressions identified from the 0.2.0 screenshots wi
 
 ## Verification
 
-- Renderer tests cover project artwork, navigation/menu behavior, absence of the drawer handle, window-control stacking, IBM Plex Sans Thai usage, SVG icons, and PLAY contrast states.
+- Renderer tests cover project artwork, navigation/menu behavior, absence of the drawer handle, window-control stacking and click behavior on every main tab, IBM Plex Sans Thai usage, SVG icons, and PLAY contrast states.
 - Visually inspect 1280×720, 1366×768, and 920×600.
 - Run the full test suite, renderer typecheck, and production build.
