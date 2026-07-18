@@ -71,6 +71,8 @@ function makeApi(existingProfile: typeof profile | null = null): LauncherApi {
     toggleMaximize: vi.fn(async () => true),
     setFullscreen: vi.fn(async () => true),
     applyDisplaySettings: vi.fn(async (settings) => settings),
+    setContentDrawerOpen: vi.fn(async () => 'overlay' as const),
+    onContentDrawerLayout: vi.fn(() => () => undefined),
     close: vi.fn(async () => undefined)
   } as NonNullable<LauncherApi['window']> & {
     setFullscreen: ReturnType<typeof vi.fn>;
@@ -597,7 +599,7 @@ describe('App', () => {
     expect(updateButtonRule).toContain('-webkit-app-region: no-drag');
   });
 
-  it('keeps the project screen and settings layout deliberately animated', () => {
+  it('keeps the project background static while retaining lightweight interface animation', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
     const projectPanelRule = css.match(/\.project-panel\s*\{([^}]*)\}/s)?.[1] || '';
     const projectPanelBeforeRule = css.match(/\.project-panel::before\s*\{([^}]*)\}/s)?.[1] || '';
@@ -615,7 +617,7 @@ describe('App', () => {
     const oldSettingsSpanOverride = css.match(/\.directory-card,\s*\.display-card,\s*\.memory-card\s*\{([^}]*)\}/s)?.[1] || '';
 
     expect(css).toContain('@keyframes project-board-in');
-    expect(css).toContain('@keyframes project-image-drift');
+    expect(css).not.toContain('@keyframes project-image-drift');
     expect(css).toContain('@keyframes splash-zoom-exit');
     expect(css).toContain('@keyframes main-zoom-enter');
     expect(css).not.toContain('@keyframes star-warp');
@@ -625,12 +627,12 @@ describe('App', () => {
     expect(splashExitRule).toContain('animation: splash-zoom-exit');
     expect(mainEnterShellRule).toContain('animation: main-zoom-enter');
     expect(projectStageRule).toContain('animation: project-board-in');
-    expect(projectImageRule).toContain('animation: project-image-drift');
+    expect(projectImageRule).not.toContain('animation');
     expect(projectPanelRule).toContain('grid-template-rows: minmax(0, 1fr)');
     expect(projectPanelRule).toContain('position: relative');
     expect(projectPanelRule).toContain('overflow: hidden');
     expect(projectPanelBeforeRule).toContain('linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px)');
-    expect(projectPanelBeforeRule).toContain('animation: project-grid-drift');
+    expect(projectPanelBeforeRule).not.toContain('animation');
     expect(projectStageAfterRule).not.toContain('linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px)');
     expect(projectPanelRule).not.toContain('58px');
     expect(projectActionsRule).toContain('position: relative');
