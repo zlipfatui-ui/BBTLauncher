@@ -226,15 +226,6 @@ export function ProjectContentDrawer({
 
   return (
     <>
-      <button
-        className={`content-drawer-handle ${open ? 'open' : ''}`}
-        type="button"
-        onClick={toggleDrawer}
-        aria-label={`${open ? 'Close' : 'Open'} ${projectTitle} content library`}
-        aria-expanded={open}
-      >
-        <span aria-hidden="true">{open ? '›' : '‹'}</span>
-      </button>
       <aside
         className={`content-drawer ${open ? 'open' : ''} ${layout}`}
         aria-label={`${projectTitle} content library`}

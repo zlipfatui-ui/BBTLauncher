@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LauncherProject, LauncherUpdateState } from '../shared/types';
 import { resolveRendererAssetUrl } from './assets';
+import { ShoppingBagIcon } from './icons';
 
 export type LauncherTab = 'project' | 'shop' | 'settings';
 
@@ -130,7 +131,7 @@ export function LauncherHeader({
         <div className="topbar-drag-region" aria-hidden="true" />
 
         <button className={`tab topbar-action ${activeTab === 'shop' ? 'active' : ''}`} type="button" onClick={() => selectTab('shop')}>
-          <span className="topbar-action-icon shop-mark" aria-hidden="true" />
+          <span className="topbar-action-icon" aria-hidden="true"><ShoppingBagIcon /></span>
           <span>Shop</span>
         </button>
         <button className={`tab topbar-action ${activeTab === 'settings' ? 'active' : ''}`} type="button" onClick={() => selectTab('settings')}>

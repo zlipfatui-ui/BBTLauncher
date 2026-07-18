@@ -10,6 +10,7 @@ import type {
 import type { LauncherApi } from './launcherApi';
 import { fallbackManifest } from './launcherApi';
 import { resolveRendererAssetUrl } from './assets';
+import { FolderIcon } from './icons';
 import { ProjectContentDrawer } from './ProjectContentDrawer';
 
 type ProjectActionState = ProjectInstallState | 'checking';
@@ -215,7 +216,7 @@ export function ProjectPanel({
                 </span>
               </button>
               <button className="manage-content-button" type="button" onClick={openContentDrawer}>
-                <span className="manage-content-icon" aria-hidden="true">□</span>
+                <span className="manage-content-icon" aria-hidden="true"><FolderIcon /></span>
                 <span>MANAGE CONTENT</span>
               </button>
             </div>

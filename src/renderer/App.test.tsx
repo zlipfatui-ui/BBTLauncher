@@ -251,7 +251,7 @@ describe('App', () => {
   it('presents the approved Northvale story and opens project content from the hero', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
-    render(<App api={api} />);
+    const { container } = render(<App api={api} />);
 
     await user.click(screen.getByRole('button', { name: /click to start/i }));
 
@@ -259,8 +259,14 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'เริ่มการผจญภัยแห่งนี้' })).toBeInTheDocument();
     expect(screen.getByText('ความฝันหรือความจริงกันแน่ ?')).toBeInTheDocument();
     expect(screen.queryByText('Connected')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Shop' }).querySelector('svg')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /manage content/i }));
+    const manageContent = screen.getByRole('button', { name: /manage content/i });
+    expect(manageContent.querySelector('svg')).toBeInTheDocument();
+    expect(manageContent).not.toHaveTextContent('□');
+    expect(container.querySelector('.content-drawer-handle')).not.toBeInTheDocument();
+
+    await user.click(manageContent);
 
     expect(api.window?.setContentDrawerOpen).toHaveBeenCalledWith(true);
     expect(screen.getByRole('complementary', { name: /content library/i })).toHaveAttribute('aria-hidden', 'false');
@@ -800,11 +806,33 @@ describe('App', () => {
 
   it('uses Thai-safe typography for the project headline', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
+    const appSource = readFileSync(resolve(process.cwd(), 'src/renderer/App.tsx'), 'utf8');
+    const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+      build: {
+        extraResources?: Array<{ from: string; to: string }>;
+      };
+    };
     const heroHeadingRule = css.match(/\.project-hero-copy h1\s*\{([^}]*)\}/s)?.[1] || '';
+    const heroSupportingRule = css.match(/\.project-hero-copy p\s*\{([^}]*)\}/s)?.[1] || '';
 
-    expect(heroHeadingRule).toContain('"Leelawadee UI"');
+    expect(packageJson.dependencies['@ibm/plex-sans-thai']).toBe('1.1.0');
+    expect(packageJson.build.extraResources).toContainEqual({
+      from: 'node_modules/@ibm/plex-sans-thai/LICENSE.txt',
+      to: 'licenses/IBM-Plex-Sans-Thai-OFL-1.1.txt'
+    });
+    expect(appSource.indexOf("@ibm/plex-sans-thai/css/ibm-plex-sans-thai-default.css")).toBeLessThan(
+      appSource.indexOf("'./styles.css'")
+    );
+    expect(heroHeadingRule).toContain('"IBM Plex Sans Thai"');
+    expect(heroHeadingRule).toContain('font-weight: 600');
+    expect(heroHeadingRule).toContain('font-size: clamp(40px, 4.15vw, 58px)');
+    expect(heroHeadingRule).toContain('line-height: 1.16');
     expect(heroHeadingRule).toContain('letter-spacing: 0');
     expect(heroHeadingRule).toContain('max-width: 680px');
+    expect(heroSupportingRule).toContain('"IBM Plex Sans Thai"');
+    expect(heroSupportingRule).toContain('font-weight: 400');
+    expect(heroSupportingRule).toContain('line-height: 1.6');
   });
 
   it('keeps the content drawer neutral and free of decorative glow', () => {
@@ -819,6 +847,34 @@ describe('App', () => {
     expect(drawerFooterRule).toContain('border-top: 0');
     expect(toggleFocusRule).not.toContain('box-shadow');
     expect(css).not.toMatch(/content-(?:drawer|toggle)-star/);
+    expect(css).not.toContain('.content-drawer-handle');
+  });
+
+  it('keeps PLAY readable across hover, pressed, focus, disabled, and progress states', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
+    const playRule = css.match(/\.play-button\s*\{([^}]*)\}/s)?.[1] || '';
+    const hoverRule = css.match(/\.play-button:hover:not\(:disabled\)\s*\{([^}]*)\}/s)?.[1] || '';
+    const pressedRule = css.match(/\.play-button:active:not\(:disabled\)\s*\{([^}]*)\}/s)?.[1] || '';
+    const focusRule = css.match(/\.play-button:focus-visible\s*\{([^}]*)\}/s)?.[1] || '';
+    const disabledRule = css.match(/\.play-button:disabled\s*\{([^}]*)\}/s)?.[1] || '';
+    const progressRule = css.match(/\.play-progress-fill\s*\{([^}]*)\}/s)?.[1] || '';
+    const genericDarkHover = css.match(
+      /\.settings-button:hover,\s*\.project-pill:hover,\s*\.project-arrow:hover\s*\{([^}]*)\}/s
+    )?.[0] || '';
+
+    expect(playRule).toContain('background: #f4f4f2');
+    expect(playRule).toContain('color: #0b0b0b');
+    expect(hoverRule).toContain('background: #fff');
+    expect(hoverRule).toContain('color: #050505');
+    expect(hoverRule).toContain('transform: translateY(-1px)');
+    expect(pressedRule).toContain('background: #d9d9d6');
+    expect(pressedRule).toContain('transform: translateY(0)');
+    expect(focusRule).toContain('outline: 1px solid');
+    expect(focusRule).not.toContain('box-shadow');
+    expect(disabledRule).toContain('opacity: 1');
+    expect(disabledRule).toContain('color:');
+    expect(progressRule).toContain('background:');
+    expect(genericDarkHover).not.toContain('.play-button:hover');
   });
 
   it('keeps route transition animation lightweight enough for Electron', () => {

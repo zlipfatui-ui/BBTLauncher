@@ -11,6 +11,7 @@ import { fallbackManifest, getLauncherApi } from './launcherApi';
 import { DiscordIcon, TikTokIcon, YouTubeIcon } from './icons';
 import { LauncherHeader } from './LauncherHeader';
 import { ProjectPanel as ProjectPage } from './ProjectPanel';
+import '@ibm/plex-sans-thai/css/ibm-plex-sans-thai-default.css';
 import './styles.css';
 
 type Screen = 'splash' | 'auth' | 'main';
