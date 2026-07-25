@@ -36,6 +36,14 @@ function frame(opcode: number, payload: unknown): Buffer {
   return Buffer.concat([header, body]);
 }
 
+function rawFrame(opcode: number, payload: string): Buffer {
+  const body = Buffer.from(payload, 'utf8');
+  const header = Buffer.alloc(8);
+  header.writeUInt32LE(opcode, 0);
+  header.writeUInt32LE(body.length, 4);
+  return Buffer.concat([header, body]);
+}
+
 function readFrame(data: Uint8Array): { opcode: number; payload: unknown } {
   const buffer = Buffer.from(data);
   return {
@@ -124,6 +132,40 @@ describe('Discord RPC transport framing', () => {
     socket.emit('data', frame(3, { heartbeat: 'keepalive' }));
 
     expect(readFrame(socket.writes.at(-1)!)).toEqual({ opcode: 4, payload: { heartbeat: 'keepalive' } });
+  });
+
+  it('discards a connection when a PING payload is malformed JSON', () => {
+    const sockets: TestSocket[] = [];
+    const client = createDiscordRpcClient({
+      applicationId: 'application-id',
+      connectPipe: () => {
+        const socket = new TestSocket();
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    client.start();
+
+    expect(() => sockets[0].emit('data', rawFrame(3, '{not-json'))).not.toThrow();
+    expect(sockets).toHaveLength(2);
+  });
+
+  it('discards a connection when a FRAME payload is malformed JSON', () => {
+    const sockets: TestSocket[] = [];
+    const client = createDiscordRpcClient({
+      applicationId: 'application-id',
+      connectPipe: () => {
+        const socket = new TestSocket();
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    client.start();
+
+    expect(() => sockets[0].emit('data', rawFrame(1, '{not-json'))).not.toThrow();
+    expect(sockets).toHaveLength(2);
   });
 });
 

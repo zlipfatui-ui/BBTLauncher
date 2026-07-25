@@ -101,22 +101,34 @@ export function createDiscordRpcClient(options: DiscordRpcOptions): DiscordRpcCl
     else scheduleRetry();
   };
 
-  const handleFrame = (target: RpcSocket, opcode: number, payload: Buffer): void => {
-    if (socket !== target || stopped) return;
+  const handleFrame = (target: RpcSocket, pipeIndex: number, opcode: number, payload: Buffer): boolean => {
+    if (socket !== target || stopped) return false;
     if (opcode === PING) {
-      writeFrame(target, PONG, JSON.parse(payload.toString('utf8')));
-      return;
+      try {
+        writeFrame(target, PONG, JSON.parse(payload.toString('utf8')));
+      } catch {
+        failPipe(target, pipeIndex);
+        return false;
+      }
+      return true;
     }
-    if (opcode !== FRAME) return;
+    if (opcode !== FRAME) return true;
 
-    const message = JSON.parse(payload.toString('utf8')) as { evt?: string };
+    let message: { evt?: string };
+    try {
+      message = JSON.parse(payload.toString('utf8')) as { evt?: string };
+    } catch {
+      failPipe(target, pipeIndex);
+      return false;
+    }
     if (message.evt === 'READY') {
       readySocket = target;
       if (desiredActivity) sendActivity(target, desiredActivity);
     }
+    return true;
   };
 
-  const handleData = (target: RpcSocket, data: Buffer): void => {
+  const handleData = (target: RpcSocket, pipeIndex: number, data: Buffer): void => {
     if (socket !== target || stopped) return;
     bufferedData = Buffer.concat([bufferedData, data]);
     while (bufferedData.length >= 8) {
@@ -125,7 +137,7 @@ export function createDiscordRpcClient(options: DiscordRpcOptions): DiscordRpcCl
       if (bufferedData.length < 8 + payloadLength) return;
       const payload = bufferedData.subarray(8, 8 + payloadLength);
       bufferedData = bufferedData.subarray(8 + payloadLength);
-      handleFrame(target, opcode, payload);
+      if (!handleFrame(target, pipeIndex, opcode, payload)) return;
     }
   };
 
@@ -147,7 +159,7 @@ export function createDiscordRpcClient(options: DiscordRpcOptions): DiscordRpcCl
       if (socket !== candidate || stopped) return;
       writeFrame(candidate, HANDSHAKE, { v: 1, client_id: options.applicationId });
     });
-    candidate.on('data', (data) => handleData(candidate, data));
+    candidate.on('data', (data) => handleData(candidate, pipeIndex, data));
     candidate.on('error', () => failPipe(candidate, pipeIndex));
     candidate.on('close', () => failPipe(candidate, pipeIndex));
   };
