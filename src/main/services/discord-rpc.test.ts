@@ -167,6 +167,23 @@ describe('Discord RPC transport framing', () => {
     expect(() => sockets[0].emit('data', rawFrame(1, '{not-json'))).not.toThrow();
     expect(sockets).toHaveLength(2);
   });
+
+  it('discards a connection when a FRAME payload is JSON null', () => {
+    const sockets: TestSocket[] = [];
+    const client = createDiscordRpcClient({
+      applicationId: 'application-id',
+      connectPipe: () => {
+        const socket = new TestSocket();
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    client.start();
+
+    expect(() => sockets[0].emit('data', rawFrame(1, 'null'))).not.toThrow();
+    expect(sockets).toHaveLength(2);
+  });
 });
 
 describe('Discord RPC pipe lifecycle', () => {

@@ -114,13 +114,18 @@ export function createDiscordRpcClient(options: DiscordRpcOptions): DiscordRpcCl
     }
     if (opcode !== FRAME) return true;
 
-    let message: { evt?: string };
+    let parsedMessage: unknown;
     try {
-      message = JSON.parse(payload.toString('utf8')) as { evt?: string };
+      parsedMessage = JSON.parse(payload.toString('utf8'));
     } catch {
       failPipe(target, pipeIndex);
       return false;
     }
+    if (typeof parsedMessage !== 'object' || parsedMessage === null || Array.isArray(parsedMessage)) {
+      failPipe(target, pipeIndex);
+      return false;
+    }
+    const message = parsedMessage as { evt?: unknown };
     if (message.evt === 'READY') {
       readySocket = target;
       if (desiredActivity) sendActivity(target, desiredActivity);
