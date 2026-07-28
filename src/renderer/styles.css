@@ -216,12 +216,13 @@ button {
   border: 0;
   background: transparent;
   color: #fff;
-  font-family: "Inter Tight", "Segoe UI Variable Display", "Segoe UI", Arial, sans-serif;
-  font-size: clamp(15px, 1.4vw, 17px);
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+  font-size: clamp(18px, 1.65vw, 20px);
   font-style: normal;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  line-height: 1.2;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0.1em;
+  line-height: 1;
   cursor: pointer;
   transition: transform 180ms ease;
 }
