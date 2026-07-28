@@ -220,6 +220,7 @@ describe('App', () => {
     expect(api.settings.save).toHaveBeenCalledWith({ selectedProject: 'sainam' });
     expect(api.project.getState).toHaveBeenLastCalledWith('sainam');
     expect(screen.queryByText('NORTHVALE / SEASON 01')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'SAINAM' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /SaiNam gallery image/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Gallery image/i })).not.toBeInTheDocument();
     expect(projectTrigger.querySelector('.project-trigger-artwork')).not.toBeInTheDocument();

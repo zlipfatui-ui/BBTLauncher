@@ -206,7 +206,7 @@ export function ProjectPanel({
             <span className="project-eyebrow">
               {isNorthvale ? 'NORTHVALE / SEASON 01' : project.title.toUpperCase()}
             </span>
-            <h1>{isNorthvale ? 'เริ่มการผจญภัยแห่งนี้' : project.title}</h1>
+            <h1>{isNorthvale ? 'เริ่มการผจญภัยแห่งนี้' : project.title.toUpperCase()}</h1>
             <p>{isNorthvale ? 'ความฝันหรือความจริงกันแน่ ?' : project.statusText}</p>
             <div className="project-hero-actions">
               <button className="play-button" type="button" onClick={runProjectAction} disabled={actionDisabled} aria-label={actionText}>
