@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { LauncherSettings } from '../../shared/types.js';
-import { NORTHVALE_PROJECT_ID } from '../../shared/types.js';
+import { isProjectId, NORTHVALE_PROJECT_ID } from '../../shared/types.js';
 
 const settingsFileName = 'settings.json';
 
@@ -30,7 +30,7 @@ function normalizeSettings(rootDir: string, value: Partial<LauncherSettings>): L
     height: Number.isFinite(value.height) ? Math.max(480, Math.floor(Number(value.height))) : defaults.height,
     fullscreen: Boolean(value.fullscreen),
     memoryMb: Number.isFinite(value.memoryMb) ? Math.max(1024, Math.floor(Number(value.memoryMb))) : defaults.memoryMb,
-    selectedProject: value.selectedProject === NORTHVALE_PROJECT_ID ? NORTHVALE_PROJECT_ID : defaults.selectedProject
+    selectedProject: isProjectId(value.selectedProject) ? value.selectedProject : defaults.selectedProject
   };
 }
 

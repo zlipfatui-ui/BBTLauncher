@@ -1,6 +1,12 @@
 export const NORTHVALE_PROJECT_ID = 'northvale';
+export const SAINAM_PROJECT_ID = 'sainam';
+export const PROJECT_IDS = [NORTHVALE_PROJECT_ID, SAINAM_PROJECT_ID] as const;
 
-export type ProjectId = typeof NORTHVALE_PROJECT_ID;
+export type ProjectId = (typeof PROJECT_IDS)[number];
+
+export function isProjectId(value: unknown): value is ProjectId {
+  return PROJECT_IDS.some((projectId) => projectId === value);
+}
 
 export type ProjectContentKind = 'mods' | 'resourcepacks' | 'shaderpacks';
 export type ProjectContentSource = 'user' | 'managed';
@@ -57,7 +63,7 @@ export interface LauncherProject {
   minecraft: {
     version: '1.20.1';
     loader: 'forge';
-    loaderVersion: '47.4.20';
+    loaderVersion: '47.4.20' | '47.4.10';
     javaMajor: 17;
   };
   artwork: {

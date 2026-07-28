@@ -1,5 +1,9 @@
 import type { LauncherFile, LauncherManifest, LauncherProject } from '../../shared/types.js';
-import { NORTHVALE_PROJECT_ID } from '../../shared/types.js';
+import {
+  isProjectId,
+  NORTHVALE_PROJECT_ID,
+  SAINAM_PROJECT_ID
+} from '../../shared/types.js';
 import { normalizeProjectFilePath } from './path-safety.js';
 import { isForbiddenProjectManifestPath, isLauncherManagedProjectPath } from './managed-project-files.js';
 
@@ -18,6 +22,15 @@ function expectString(value: unknown, label: string): string {
   }
   return value;
 }
+
+const projectMetadata = {
+  [NORTHVALE_PROJECT_ID]: {
+    loaderVersion: '47.4.20'
+  },
+  [SAINAM_PROJECT_ID]: {
+    loaderVersion: '47.4.10'
+  }
+} as const;
 
 function validateFile(value: unknown): LauncherFile {
   if (!isRecord(value)) throw new Error('Invalid launcher manifest: file entry must be an object.');
@@ -55,18 +68,22 @@ function validateFile(value: unknown): LauncherFile {
 
 function validateProject(value: unknown): LauncherProject {
   if (!isRecord(value)) throw new Error('Invalid launcher manifest: project must be an object.');
-  if (value.id !== NORTHVALE_PROJECT_ID) {
-    throw new Error('Invalid launcher manifest: v1 only supports northvale.');
+  if (!isProjectId(value.id)) {
+    throw new Error(`Invalid launcher manifest: unsupported project id ${String(value.id)}.`);
   }
+  const projectId = value.id;
+  const expected = projectMetadata[projectId];
 
   const minecraft = isRecord(value.minecraft) ? value.minecraft : {};
   if (
     minecraft.version !== '1.20.1' ||
     minecraft.loader !== 'forge' ||
-    minecraft.loaderVersion !== '47.4.20' ||
+    minecraft.loaderVersion !== expected.loaderVersion ||
     minecraft.javaMajor !== 17
   ) {
-    throw new Error('Invalid launcher manifest: Northvale must use Forge 1.20.1-47.4.20 and Java 17.');
+    throw new Error(
+      `Invalid launcher manifest: ${projectId} must use Forge 1.20.1-${expected.loaderVersion} and Java 17.`
+    );
   }
 
   const artwork = isRecord(value.artwork) ? value.artwork : {};
@@ -76,13 +93,13 @@ function validateProject(value: unknown): LauncherProject {
   }
 
   return {
-    id: NORTHVALE_PROJECT_ID,
+    id: projectId,
     title: expectString(value.title, 'project.title'),
     statusText: expectString(value.statusText, 'project.statusText'),
     minecraft: {
       version: '1.20.1',
       loader: 'forge',
-      loaderVersion: '47.4.20',
+      loaderVersion: expected.loaderVersion,
       javaMajor: 17
     },
     artwork: {
@@ -99,6 +116,10 @@ export function validateLauncherManifest(value: unknown): LauncherManifest {
   const generatedAt = expectString(value.generatedAt, 'generatedAt');
   const projects = Array.isArray(value.projects) ? value.projects.map(validateProject) : [];
   if (projects.length === 0) throw new Error('Invalid launcher manifest: at least one project is required.');
+  const projectIds = projects.map((project) => project.id);
+  if (new Set(projectIds).size !== projectIds.length) {
+    throw new Error('Invalid launcher manifest: duplicate project ids are not allowed.');
+  }
   return { schemaVersion: 1, generatedAt, projects };
 }
 

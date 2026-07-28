@@ -9,7 +9,7 @@ import type {
   ProjectContentListResult,
   ProjectContentRejection
 } from '../../shared/types.js';
-import { NORTHVALE_PROJECT_ID } from '../../shared/types.js';
+import { isProjectId } from '../../shared/types.js';
 import { readManagedProjectIndex } from './managed-project-index.js';
 import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
 
@@ -52,7 +52,7 @@ interface ValidatedContentPath {
 const disabledSuffix = '.disabled';
 
 function assertSupportedProject(projectId: string): void {
-  if (projectId !== NORTHVALE_PROJECT_ID) {
+  if (!isProjectId(projectId)) {
     throw new Error(`Project content is not supported for: ${projectId}`);
   }
 }
@@ -247,7 +247,7 @@ export async function importProjectContent({
     let destinationExists = false;
     let disabledDestinationExists = false;
     if (kind === 'mods' && classification.paths.has(normalizedKey(relativePath))) {
-      rejected.push(rejection(name, 'managed-conflict', 'This filename is managed by the Northvale manifest.'));
+      rejected.push(rejection(name, 'managed-conflict', 'This filename is managed by the selected project manifest.'));
       continue;
     }
     if (kind === 'mods' && !classification.available) {
@@ -329,7 +329,7 @@ export async function importProjectContent({
       if (!existsSync(restorePath) && existsSync(backupPath)) {
         await rename(backupPath, restorePath).catch(() => undefined);
       }
-      rejected.push(rejection(candidate.name, 'unreadable', 'The file could not be copied into Northvale.'));
+      rejected.push(rejection(candidate.name, 'unreadable', 'The file could not be copied into the selected project.'));
     } finally {
       if (existsSync(tempPath)) await rm(tempPath, { force: true });
       if (existsSync(backupPath)) await rm(backupPath, { force: true });

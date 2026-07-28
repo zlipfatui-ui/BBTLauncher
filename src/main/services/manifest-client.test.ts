@@ -38,6 +38,69 @@ describe('manifest client', () => {
     expect(validateLauncherManifest(manifest)).toEqual(manifest);
   });
 
+  it('validates Northvale and SaiNam with their own Forge versions and artwork', () => {
+    const twoProjects = structuredClone(manifest) as unknown as Record<string, unknown>;
+    (twoProjects.projects as unknown[]).push({
+      id: 'sainam',
+      title: 'SaiNam',
+      statusText: 'UP TO DATE',
+      minecraft: {
+        version: '1.20.1',
+        loader: 'forge',
+        loaderVersion: '47.4.10',
+        javaMajor: 17
+      },
+      artwork: {
+        cover: '',
+        gallery: []
+      },
+      files: []
+    });
+
+    expect(validateLauncherManifest(twoProjects).projects[1]).toEqual({
+      id: 'sainam',
+      title: 'SaiNam',
+      statusText: 'UP TO DATE',
+      minecraft: {
+        version: '1.20.1',
+        loader: 'forge',
+        loaderVersion: '47.4.10',
+        javaMajor: 17
+      },
+      artwork: {
+        cover: '',
+        gallery: []
+      },
+      files: []
+    });
+  });
+
+  it('rejects unknown, duplicate, and mismatched project metadata', () => {
+    const unknown = structuredClone(manifest) as unknown as Record<string, unknown>;
+    (unknown.projects as Array<Record<string, unknown>>)[0].id = 'unknown';
+    expect(() => validateLauncherManifest(unknown)).toThrow(/project id|supports/i);
+
+    const duplicate = structuredClone(manifest) as unknown as Record<string, unknown>;
+    (duplicate.projects as unknown[]).push(structuredClone((duplicate.projects as unknown[])[0]));
+    expect(() => validateLauncherManifest(duplicate)).toThrow(/duplicate/i);
+
+    const mismatched = structuredClone(manifest) as unknown as Record<string, unknown>;
+    (mismatched.projects as unknown[]).push({
+      id: 'sainam',
+      title: 'SaiNam',
+      statusText: 'UP TO DATE',
+      minecraft: {
+        version: '1.20.1',
+        loader: 'forge',
+        loaderVersion: '47.4.20',
+        javaMajor: 17
+      },
+      artwork: { cover: '', gallery: [] },
+      files: []
+    });
+    expect(() => validateLauncherManifest(mismatched)).toThrow(/47\.4\.10/i);
+  });
+
   it('rejects unsafe file paths from the manifest', () => {
     const unsafe = structuredClone(manifest);
     unsafe.projects[0].files[0].path = '../mods/bad.jar';

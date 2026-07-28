@@ -44,6 +44,35 @@ describe('launcher settings', () => {
     }
   });
 
+  it('saves and reloads SaiNam as a known project', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
+    try {
+      const saved = await saveSettings(root, {
+        selectedProject: 'sainam' as never
+      });
+
+      expect(saved.selectedProject).toBe('sainam');
+      await expect(loadSettings(root)).resolves.toMatchObject({
+        selectedProject: 'sainam'
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to Northvale for an unknown project id', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
+    try {
+      const saved = await saveSettings(root, {
+        selectedProject: 'unknown' as never
+      });
+
+      expect(saved.selectedProject).toBe('northvale');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('uses appDirectory as the runtime root while keeping settings in launcherRoot', () => {
     expect(getRuntimeRoot({
       appDirectory: 'D:/NorthvaleLauncherData',

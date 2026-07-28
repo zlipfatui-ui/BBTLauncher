@@ -15,6 +15,7 @@ import type {
   SafeMinecraftProfile,
   SyncResult
 } from '../shared/types';
+import { isProjectId } from '../shared/types';
 
 export interface LauncherApi {
   auth: {
@@ -99,6 +100,22 @@ export const fallbackManifest: LauncherManifest = {
         ]
       },
       files: []
+    },
+    {
+      id: 'sainam',
+      title: 'SaiNam',
+      statusText: 'UP TO DATE',
+      minecraft: {
+        version: '1.20.1',
+        loader: 'forge',
+        loaderVersion: '47.4.10',
+        javaMajor: 17
+      },
+      artwork: {
+        cover: '',
+        gallery: []
+      },
+      files: []
     }
   ]
 };
@@ -147,7 +164,7 @@ export const fallbackApi: LauncherApi = {
         height: settings.height || 720,
         fullscreen: Boolean(settings.fullscreen),
         memoryMb: settings.memoryMb || 8192,
-        selectedProject: 'northvale'
+        selectedProject: isProjectId(settings.selectedProject) ? settings.selectedProject : 'northvale'
       };
     },
     async selectAppDirectory() {
