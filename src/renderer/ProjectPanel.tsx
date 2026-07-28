@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import type {
   ContentDrawerLayout,
   LaunchProgress,
-  LauncherManifest,
+  LauncherProject,
   ProjectInstallState,
   ProjectLaunchState,
   ProjectProgressEvent
 } from '../shared/types';
+import { NORTHVALE_PROJECT_ID } from '../shared/types';
 import type { LauncherApi } from './launcherApi';
-import { fallbackManifest } from './launcherApi';
 import { resolveRendererAssetUrl } from './assets';
 import { FolderIcon } from './icons';
 import { ProjectContentDrawer } from './ProjectContentDrawer';
@@ -32,12 +32,11 @@ function formatLaunchProgress(progress: LaunchProgress): string {
 
 export function ProjectPanel({
   api,
-  manifest
+  project
 }: {
   api: LauncherApi;
-  manifest: LauncherManifest;
+  project: LauncherProject;
 }) {
-  const project = manifest.projects[0] ?? fallbackManifest.projects[0];
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [projectState, setProjectState] = useState<ProjectActionState>('checking');
   const [launchState, setLaunchState] = useState<ProjectLaunchState>({ status: 'idle' });
@@ -48,10 +47,14 @@ export function ProjectPanel({
   const [drawerLayout, setDrawerLayout] = useState<ContentDrawerLayout>('overlay');
   const [contentRevision, setContentRevision] = useState(0);
   const visibleDots = [0, 1, 2];
-  const gallery = project.artwork.gallery.length ? project.artwork.gallery : fallbackManifest.projects[0].artwork.gallery;
-  const activeImage = resolveRendererAssetUrl(gallery[galleryIndex % gallery.length]);
+  const gallery = project.artwork.gallery;
+  const activeImage = gallery.length
+    ? resolveRendererAssetUrl(gallery[galleryIndex % gallery.length])
+    : null;
+  const isNorthvale = project.id === NORTHVALE_PROJECT_ID;
 
   useEffect(() => {
+    if (gallery.length <= 1) return undefined;
     const timer = window.setInterval(() => setGalleryIndex((index) => (index + 1) % gallery.length), 5200);
     return () => window.clearInterval(timer);
   }, [gallery.length]);
@@ -126,7 +129,7 @@ export function ProjectPanel({
     return () => {
       active = false;
     };
-  }, [api, manifest.generatedAt, project.id, project.statusText]);
+  }, [api, project.id, project.statusText]);
 
   async function runProjectAction() {
     if (launchState.status === 'running') {
@@ -195,12 +198,16 @@ export function ProjectPanel({
   return (
     <section className={`project-panel ${drawerOpen ? 'content-drawer-open' : ''} ${drawerLayout === 'expanded' ? 'content-drawer-expanded' : 'content-drawer-overlay'}`}>
       <section className="project-board">
-        <div className="project-stage">
-          <img className="project-image" src={activeImage} alt={`${project.title} gallery image ${galleryIndex + 1}`} />
+        <div className={`project-stage ${activeImage ? '' : 'no-artwork'}`}>
+          {activeImage ? (
+            <img className="project-image" src={activeImage} alt={`${project.title} gallery image ${galleryIndex + 1}`} />
+          ) : null}
           <div className="project-hero-copy">
-            <span className="project-eyebrow">NORTHVALE / SEASON 01</span>
-            <h1>เริ่มการผจญภัยแห่งนี้</h1>
-            <p>ความฝันหรือความจริงกันแน่ ?</p>
+            <span className="project-eyebrow">
+              {isNorthvale ? 'NORTHVALE / SEASON 01' : project.title.toUpperCase()}
+            </span>
+            <h1>{isNorthvale ? 'เริ่มการผจญภัยแห่งนี้' : project.title}</h1>
+            <p>{isNorthvale ? 'ความฝันหรือความจริงกันแน่ ?' : project.statusText}</p>
             <div className="project-hero-actions">
               <button className="play-button" type="button" onClick={runProjectAction} disabled={actionDisabled} aria-label={actionText}>
                 {progressPercent !== null ? (
@@ -222,17 +229,19 @@ export function ProjectPanel({
             </div>
           </div>
 
-          <div className="project-dots" aria-label="Gallery image count">
-            {visibleDots.map((dot) => (
-              <button
-                key={dot}
-                className={`project-dot ${dot === galleryIndex % 3 ? 'active' : ''}`}
-                type="button"
-                aria-label={`Gallery image ${dot + 1}`}
-                onClick={() => setGalleryIndex(dot)}
-              />
-            ))}
-          </div>
+          {gallery.length ? (
+            <div className="project-dots" aria-label="Gallery image count">
+              {visibleDots.map((dot) => (
+                <button
+                  key={dot}
+                  className={`project-dot ${dot === galleryIndex % 3 ? 'active' : ''}`}
+                  type="button"
+                  aria-label={`Gallery image ${dot + 1}`}
+                  onClick={() => setGalleryIndex(dot)}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -240,8 +249,8 @@ export function ProjectPanel({
         api={api}
         projectId={project.id}
         projectTitle={project.title}
-        projectSeason="SEASON 01"
-        projectMonogram="NV"
+        projectSeason={isNorthvale ? 'SEASON 01' : ''}
+        projectMonogram={isNorthvale ? 'NV' : 'SN'}
         open={drawerOpen}
         layout={drawerLayout}
         refreshKey={contentRevision}

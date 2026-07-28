@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   LauncherUpdateState,
   LauncherManifest,
+  LauncherProject,
   LauncherSettings,
+  ProjectId,
   SafeMinecraftProfile
 } from '../shared/types';
 import { NORTHVALE_PROJECT_ID } from '../shared/types';
@@ -21,6 +23,25 @@ type TransitionPhase = 'idle' | 'splash-exit' | 'auth-enter' | 'main-enter';
 
 const routeSwitchDelayMs = 180;
 const routeTransitionDurationMs = 430;
+
+const defaultLauncherSettings: LauncherSettings = {
+  appDirectory: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
+  width: 1280,
+  height: 720,
+  fullscreen: false,
+  memoryMb: 8192,
+  selectedProject: NORTHVALE_PROJECT_ID
+};
+
+function resolveSelectedProject(
+  manifest: LauncherManifest,
+  selectedProject: ProjectId
+): LauncherProject {
+  return manifest.projects.find((project) => project.id === selectedProject)
+    ?? manifest.projects.find((project) => project.id === NORTHVALE_PROJECT_ID)
+    ?? manifest.projects[0]
+    ?? fallbackManifest.projects[0];
+}
 
 const socialLinks = [
   { label: 'YouTube', href: 'https://www.youtube.com/@BeforeBedtimeProject', icon: <YouTubeIcon /> },
@@ -447,18 +468,29 @@ function MainShell({
   const [activeTab, setActiveTab] = useState<Tab>('project');
   const [updateState, setUpdateState] = useState<LauncherUpdateState>({ status: 'idle' });
   const [manifest, setManifest] = useState<LauncherManifest>(fallbackManifest);
-  const [settings, setSettings] = useState<LauncherSettings>({
-    appDirectory: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
-    width: 1280,
-    height: 720,
-    fullscreen: false,
-    memoryMb: 8192,
-    selectedProject: NORTHVALE_PROJECT_ID
-  });
+  const [settings, setSettings] = useState<LauncherSettings>(defaultLauncherSettings);
 
   useEffect(() => {
-    void api.manifest.refresh().then(setManifest).catch(() => setManifest(fallbackManifest));
-    void api.settings.load().then(setSettings);
+    let active = true;
+    void Promise.all([
+      api.manifest.refresh().catch(() => fallbackManifest),
+      api.settings.load().catch(() => defaultLauncherSettings)
+    ]).then(([nextManifest, nextSettings]) => {
+      if (!active) return;
+      const selectedProject = resolveSelectedProject(nextManifest, nextSettings.selectedProject);
+      const normalizedSettings = {
+        ...nextSettings,
+        selectedProject: selectedProject.id
+      };
+      setManifest(nextManifest);
+      setSettings(normalizedSettings);
+      if (selectedProject.id !== nextSettings.selectedProject) {
+        void api.settings.save({ selectedProject: selectedProject.id }).catch(() => undefined);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [api]);
 
   useEffect(() => {
@@ -479,18 +511,33 @@ function MainShell({
     }
   }
 
+  function selectProject(projectId: ProjectId) {
+    setSettings((current) => ({ ...current, selectedProject: projectId }));
+    void api.settings.save({ selectedProject: projectId }).catch(() => undefined);
+  }
+
+  const selectedProject = resolveSelectedProject(manifest, settings.selectedProject);
+
   return (
     <section className={`screen main ${isEntering ? 'route-enter' : ''}`}>
       <div className="launcher-shell">
         <LauncherHeader
           activeTab={activeTab}
-          project={manifest.projects[0] ?? fallbackManifest.projects[0]}
+          projects={manifest.projects}
+          project={selectedProject}
           updateState={updateState}
           onTabChange={setActiveTab}
+          onProjectSelect={selectProject}
           onUpdateAction={runUpdateAction}
         />
         <main className="launcher-content">
-          {activeTab === 'project' ? <ProjectPage api={api} manifest={manifest} /> : null}
+          {activeTab === 'project' ? (
+            <ProjectPage
+              key={`${selectedProject.id}:${manifest.generatedAt}`}
+              api={api}
+              project={selectedProject}
+            />
+          ) : null}
           {activeTab === 'shop' ? <section className="shop-panel" aria-label="Shop" /> : null}
           {activeTab === 'settings' ? (
             <SettingsPanel

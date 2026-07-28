@@ -59,6 +59,22 @@ const defaultManifest: LauncherManifest = {
         ]
       },
       files: []
+    },
+    {
+      id: 'sainam',
+      title: 'SaiNam',
+      statusText: 'UP TO DATE',
+      minecraft: {
+        version: '1.20.1',
+        loader: 'forge',
+        loaderVersion: '47.4.10',
+        javaMajor: 17
+      },
+      artwork: {
+        cover: '',
+        gallery: []
+      },
+      files: []
     }
   ]
 };
@@ -100,7 +116,7 @@ function makeApi(existingProfile: typeof profile | null = null): LauncherApi {
         height: settings.height || 720,
         fullscreen: Boolean(settings.fullscreen),
         memoryMb: settings.memoryMb || 8192,
-        selectedProject: 'northvale' as const
+        selectedProject: settings.selectedProject || 'northvale'
       })),
       selectAppDirectory: vi.fn(async () => 'D:/Games/BeforeBedtime')
     },
@@ -190,7 +206,7 @@ describe('App', () => {
     expect(topbarLogo).toHaveAttribute('src', expect.stringContaining('/assets/images/logos/BBT.png'));
   });
 
-  it('shows Season 2 as a disabled coming-soon project without changing the live project', async () => {
+  it('selects SaiNam, persists it, scopes project actions, and returns to Northvale', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
     render(<App api={api} />);
@@ -208,20 +224,29 @@ describe('App', () => {
 
     await user.click(projectTrigger);
 
-    const projectMenu = screen.getByRole('menu', { name: 'Project seasons' });
+    const projectMenu = screen.getByRole('menu', { name: 'Projects' });
     expect(within(projectMenu).getByText('NORTHVALE')).toBeInTheDocument();
-    expect(within(projectMenu).getByText(/SEASON 01/)).toBeInTheDocument();
+    expect(within(projectMenu).getByText('SAINAM')).toBeInTheDocument();
 
-    const seasonTwo = within(projectMenu).getByRole('menuitem', { name: /coming soon season 02/i });
-    expect(seasonTwo).toBeDisabled();
-    expect(seasonTwo).toHaveAttribute('aria-disabled', 'true');
+    await user.click(within(projectMenu).getByRole('menuitem', { name: /SAINAM/i }));
 
-    const stateCalls = vi.mocked(api.project.getState).mock.calls.length;
-    fireEvent.click(seasonTwo);
+    expect(projectTrigger).toHaveTextContent('SAINAM');
+    expect(api.settings.save).toHaveBeenCalledWith({ selectedProject: 'sainam' });
+    expect(api.project.getState).toHaveBeenLastCalledWith('sainam');
+    expect(screen.queryByText('NORTHVALE / SEASON 01')).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /SaiNam gallery image/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Gallery image/i })).not.toBeInTheDocument();
+    expect(projectTrigger.querySelector('.project-trigger-artwork')).not.toBeInTheDocument();
 
-    expect(api.project.getState).toHaveBeenCalledTimes(stateCalls);
-    expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
-    expect(screen.queryByText('NORTHVALE / SEASON 02')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /manage content/i }));
+    expect(await screen.findByText('SAINAM LIBRARY')).toBeInTheDocument();
+    expect(api.project.content.list).toHaveBeenCalledWith('sainam', 'mods');
+
+    await user.click(projectTrigger);
+    await user.click(within(screen.getByRole('menu', { name: 'Projects' })).getByRole('menuitem', { name: /NORTHVALE/i }));
+
+    expect(await screen.findByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Northvale gallery image/i })).toBeInTheDocument();
   });
 
   it('returns from Shop and Settings without opening the season menu, then toggles it from Project', async () => {
@@ -237,15 +262,15 @@ describe('App', () => {
     await user.click(within(projectNavigation).getByRole('button', { name: 'Shop' }));
     await user.click(projectTrigger);
     expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
-    expect(screen.queryByRole('menu', { name: 'Project seasons' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu', { name: 'Projects' })).not.toBeInTheDocument();
 
     await user.click(within(projectNavigation).getByRole('button', { name: 'Settings' }));
     await user.click(projectTrigger);
     expect(screen.getByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
-    expect(screen.queryByRole('menu', { name: 'Project seasons' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu', { name: 'Projects' })).not.toBeInTheDocument();
 
     await user.click(projectTrigger);
-    expect(screen.getByRole('menu', { name: 'Project seasons' })).toBeInTheDocument();
+    expect(screen.getByRole('menu', { name: 'Projects' })).toBeInTheDocument();
   });
 
   it('presents the approved Northvale story and opens project content from the hero', async () => {

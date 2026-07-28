@@ -235,7 +235,10 @@ export function ProjectContentDrawer({
           <span className="content-drawer-monogram" aria-hidden="true">{projectMonogram}</span>
           <span className="content-drawer-title">
             <strong>{projectTitle.toUpperCase()} LIBRARY</strong>
-            <small>{projectSeason.toUpperCase()} · MANAGE PROJECT CONTENT</small>
+            <small>
+              {projectSeason ? `${projectSeason.toUpperCase()} · ` : ''}
+              MANAGE PROJECT CONTENT
+            </small>
           </span>
           <button className="content-drawer-close" type="button" onClick={toggleDrawer} aria-label="Close content library">×</button>
         </header>

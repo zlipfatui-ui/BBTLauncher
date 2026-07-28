@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LauncherProject, LauncherUpdateState } from '../shared/types';
+import type { LauncherProject, LauncherUpdateState, ProjectId } from '../shared/types';
+import { NORTHVALE_PROJECT_ID } from '../shared/types';
 import { resolveRendererAssetUrl } from './assets';
 import { ShoppingBagIcon } from './icons';
 
@@ -7,9 +8,11 @@ export type LauncherTab = 'project' | 'shop' | 'settings';
 
 interface LauncherHeaderProps {
   activeTab: LauncherTab;
+  projects: LauncherProject[];
   project: LauncherProject;
   updateState: LauncherUpdateState;
   onTabChange(tab: LauncherTab): void;
+  onProjectSelect(projectId: ProjectId): void;
   onUpdateAction(): void;
 }
 
@@ -24,9 +27,11 @@ function updateActionLabel(updateState: LauncherUpdateState): string | null {
 
 export function LauncherHeader({
   activeTab,
+  projects,
   project,
   updateState,
   onTabChange,
+  onProjectSelect,
   onUpdateAction
 }: LauncherHeaderProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
@@ -68,6 +73,18 @@ export function LauncherHeader({
     setProjectMenuOpen((open) => !open);
   }
 
+  function selectProject(projectId: ProjectId) {
+    onTabChange('project');
+    onProjectSelect(projectId);
+    setProjectMenuOpen(false);
+  }
+
+  function projectSubtitle(entry: LauncherProject): string {
+    return entry.id === NORTHVALE_PROJECT_ID
+      ? `SEASON 01 · ${entry.statusText}`
+      : entry.statusText;
+  }
+
   return (
     <header className="topbar">
       <div className="brand">
@@ -88,42 +105,42 @@ export function LauncherHeader({
             aria-expanded={projectMenuOpen}
             onClick={toggleProjectMenu}
           >
-            <img
-              className="project-trigger-artwork"
-              src={resolveRendererAssetUrl(project.artwork.cover)}
-              alt=""
-              aria-hidden="true"
-            />
+            {project.artwork.cover ? (
+              <img
+                className="project-trigger-artwork"
+                src={resolveRendererAssetUrl(project.artwork.cover)}
+                alt=""
+                aria-hidden="true"
+              />
+            ) : null}
             <span className="project-trigger-copy">
               <strong>{project.title.toUpperCase()}</strong>
-              <small>SEASON 01 · {project.statusText}</small>
+              <small>{projectSubtitle(project)}</small>
             </span>
             <span className="project-trigger-chevron" aria-hidden="true">⌄</span>
           </button>
 
           {projectMenuOpen ? (
-            <div className="project-menu" role="menu" aria-label="Project seasons">
-              <button className="project-menu-item current" type="button" role="menuitem" aria-current="page" onClick={() => setProjectMenuOpen(false)}>
-                <span className="project-menu-index">01</span>
-                <span>
-                  <strong>{project.title.toUpperCase()}</strong>
-                  <small>SEASON 01 · {project.statusText}</small>
-                </span>
-              </button>
-              <button
-                className="project-menu-item coming-soon"
-                type="button"
-                role="menuitem"
-                aria-label="Coming Soon Season 02"
-                aria-disabled="true"
-                disabled
-              >
-                <span className="project-menu-index">02</span>
-                <span>
-                  <strong>COMING SOON</strong>
-                  <small>SEASON 02 · COMING SOON</small>
-                </span>
-              </button>
+            <div className="project-menu" role="menu" aria-label="Projects">
+              {projects.map((entry, index) => {
+                const current = entry.id === project.id;
+                return (
+                  <button
+                    className={`project-menu-item ${current ? 'current' : ''}`}
+                    key={entry.id}
+                    type="button"
+                    role="menuitem"
+                    aria-current={current ? 'page' : undefined}
+                    onClick={() => selectProject(entry.id)}
+                  >
+                    <span className="project-menu-index">{String(index + 1).padStart(2, '0')}</span>
+                    <span>
+                      <strong>{entry.title.toUpperCase()}</strong>
+                      <small>{projectSubtitle(entry)}</small>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           ) : null}
         </div>
