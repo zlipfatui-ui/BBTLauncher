@@ -168,6 +168,48 @@ button {
   overflow: hidden;
 }
 
+.splash-stars {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.star-particle {
+  position: absolute;
+  left: var(--star-left);
+  top: var(--star-top);
+  width: var(--star-size);
+  height: var(--star-size);
+  overflow: visible;
+  color: rgba(255, 255, 255, 0.9);
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.42));
+  opacity: 0;
+  animation: star-rise var(--star-duration) linear var(--star-delay) infinite;
+  will-change: transform, opacity;
+}
+
+.star-particle path {
+  fill: currentColor;
+}
+
+@keyframes star-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 16vh, 0) rotate(0deg) scale(0.55);
+  }
+  12% {
+    opacity: var(--star-opacity);
+  }
+  72% {
+    opacity: var(--star-opacity);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(14px, -112vh, 0) rotate(110deg) scale(1.08);
+  }
+}
+
 .splash.is-exiting .splash-inner {
   animation: splash-zoom-exit 220ms cubic-bezier(0.2, 0.85, 0.25, 1) both;
 }

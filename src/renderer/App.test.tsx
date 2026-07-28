@@ -289,15 +289,15 @@ describe('App', () => {
     expect(screen.getByRole('tab', { name: 'SHADERS 0' })).toBeInTheDocument();
   });
 
-  it('keeps the minimal start CTA as the only splash transition trigger', async () => {
+  it('keeps the restored star field decorative and the minimal CTA as the only splash transition trigger', async () => {
     vi.useFakeTimers();
 
     try {
       const { container } = render(<App api={makeApi()} />);
       const startButton = screen.getByRole('button', { name: /click to start/i });
 
-      expect(container.querySelector('.splash-stars')).not.toBeInTheDocument();
-      expect(container.querySelector('.star-particle')).not.toBeInTheDocument();
+      expect(container.querySelectorAll('.splash-stars .star-particle')).toHaveLength(52);
+      expect(container.querySelectorAll('.splash-stars .star-particle path')).toHaveLength(52);
       expect(startButton.querySelector('svg')).not.toBeInTheDocument();
       expect(startButton).toHaveTextContent(/^Click to start$/);
 
