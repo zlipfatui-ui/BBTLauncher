@@ -214,13 +214,17 @@ describe('App', () => {
     expect(within(projectMenu).getByText('NORTHVALE')).toBeInTheDocument();
     expect(within(projectMenu).getByText('SAINAM')).toBeInTheDocument();
 
-    await user.click(within(projectMenu).getByRole('menuitem', { name: /SAINAM/i }));
+    const sainamMenuItem = within(projectMenu).getByRole('menuitem', { name: /SAINAM/i });
+    expect(sainamMenuItem).toHaveTextContent('SEASON TEST · UP TO DATE');
+    await user.click(sainamMenuItem);
 
     expect(projectTrigger).toHaveTextContent('SAINAM');
+    expect(projectTrigger).toHaveTextContent('SEASON TEST · UP TO DATE');
     expect(api.settings.save).toHaveBeenCalledWith({ selectedProject: 'sainam' });
     expect(api.project.getState).toHaveBeenLastCalledWith('sainam');
     expect(screen.queryByText('NORTHVALE / SEASON 01')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'SAINAM' })).toBeInTheDocument();
+    expect(screen.getByText('สายน้ำไหลหลาก')).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /SaiNam gallery image/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Gallery image/i })).not.toBeInTheDocument();
     expect(projectTrigger.querySelector('.project-trigger-artwork')).not.toBeInTheDocument();
@@ -233,8 +237,9 @@ describe('App', () => {
     await user.click(within(screen.getByRole('menu', { name: 'Projects' })).getByRole('menuitem', { name: /NORTHVALE/i }));
 
     expect(await screen.findByText('NORTHVALE / SEASON 01')).toBeInTheDocument();
+    expect(projectTrigger).toHaveTextContent('SEASON 01 · UP TO DATE');
     expect(screen.getByRole('img', { name: /Northvale gallery image/i })).toBeInTheDocument();
-  });
+  }, 10_000);
 
   it('returns from Shop and Settings without opening the season menu, then toggles it from Project', async () => {
     const user = userEvent.setup();

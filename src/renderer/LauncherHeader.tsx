@@ -82,7 +82,7 @@ export function LauncherHeader({
   function projectSubtitle(entry: LauncherProject): string {
     return entry.id === NORTHVALE_PROJECT_ID
       ? `SEASON 01 · ${entry.statusText}`
-      : entry.statusText;
+      : `SEASON TEST · ${entry.statusText}`;
   }
 
   return (

@@ -207,7 +207,7 @@ export function ProjectPanel({
               {isNorthvale ? 'NORTHVALE / SEASON 01' : project.title.toUpperCase()}
             </span>
             <h1>{isNorthvale ? 'เริ่มการผจญภัยแห่งนี้' : project.title.toUpperCase()}</h1>
-            <p>{isNorthvale ? 'ความฝันหรือความจริงกันแน่ ?' : project.statusText}</p>
+            <p>{isNorthvale ? 'ความฝันหรือความจริงกันแน่ ?' : 'สายน้ำไหลหลาก'}</p>
             <div className="project-hero-actions">
               <button className="play-button" type="button" onClick={runProjectAction} disabled={actionDisabled} aria-label={actionText}>
                 {progressPercent !== null ? (
