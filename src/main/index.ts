@@ -19,8 +19,11 @@ import { LegacyLiveAuthService, extractLegacyLiveCode } from './services/legacy-
 import { selectAppDirectory } from './services/directory-dialog.js';
 import { applyDisplaySettingsToWindow, createBrowserWindowOptions } from './services/window-settings.js';
 import { createProjectLaunchManager } from './services/project-launch-manager.js';
+import { createDiscordRpcClient } from './services/discord-rpc.js';
+import { createDiscordPresenceService } from './services/discord-presence.js';
 import { writeLaunchDiagnostics } from './services/diagnostics.js';
 import { createLauncherUpdateService } from './services/updater.js';
+import { PRODUCT_DISCORD_APPLICATION_ID } from './product-config.js';
 import {
   ensureProjectContentDirectory,
   importProjectContent,
@@ -135,8 +138,22 @@ const updateService = createLauncherUpdateService({
   onStateChange: (state) => sendToAllWindows('updater:state', state)
 });
 
+const discordRpc = createDiscordRpcClient({ applicationId: PRODUCT_DISCORD_APPLICATION_ID });
+const discordPresence = createDiscordPresenceService({ rpc: discordRpc });
+
+function safelyUpdateDiscordPresence(action: () => void) {
+  try {
+    action();
+  } catch {
+    // Discord Rich Presence is optional and must never interrupt launcher behavior.
+  }
+}
+
 const projectLaunchManager = createProjectLaunchManager({
-  onStateChange: (state) => sendToAllWindows('project:launchState', state),
+  onStateChange: (state) => {
+    sendToAllWindows('project:launchState', state);
+    safelyUpdateDiscordPresence(() => discordPresence.updateLaunchState(state));
+  },
   collectDiagnostics: async (state) => {
     if (!state.projectId) return;
     const settings = await loadSettings(launcherRoot);
@@ -384,6 +401,7 @@ function registerIpc() {
 }
 
 app.whenReady().then(async () => {
+  safelyUpdateDiscordPresence(() => discordPresence.start());
   registerIpc();
   createWindow(await loadSettings(launcherRoot));
   setTimeout(() => {
@@ -397,4 +415,8 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  safelyUpdateDiscordPresence(() => discordPresence.stop());
 });
