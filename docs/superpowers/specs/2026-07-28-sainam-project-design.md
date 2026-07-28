@@ -7,7 +7,7 @@ Add `SaiNam` as a second fully functional launcher project alongside
 files, launch it, and manage its user content without the projects sharing
 installation state or files.
 
-SaiNam must contain exactly the 175 files currently present in:
+SaiNam must contain exactly the 177 files selected from:
 
 `C:\Users\zLip\AppData\Roaming\ModrinthApp\profiles\Northvale _ BBT (1)\mods`
 
@@ -96,7 +96,7 @@ A SaiNam import command stages only regular files directly from the supplied
 The import rejects symbolic links and unsupported filesystem entries, copies
 files without transforming them, replaces the previous SaiNam staging
 directory atomically, and reports file and byte counts. The completed import
-must report exactly 175 files and 669,790,481 bytes for the current source.
+must report exactly 177 files and 727,416,534 bytes for the selected source.
 
 The generated public manifest contains both projects. Every SaiNam mod is a
 required managed file with its own path, encoded R2 URL, SHA-256 digest, size,
@@ -153,7 +153,7 @@ and `required` sync mode.
   URLs, and artwork behavior.
 - Upload tests prove project-scoped prefixes, indexes, uploads, and cleanup.
 - Verification checks confirm the staged and manifested SaiNam pack contains
-  exactly 175 files totaling 669,790,481 bytes.
+  exactly 177 files totaling 727,416,534 bytes.
 
 Both repositories must pass their relevant unit tests and production builds
 before completion is claimed.

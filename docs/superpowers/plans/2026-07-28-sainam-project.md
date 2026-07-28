@@ -12,7 +12,7 @@
 
 - SaiNam ID is exactly `sainam`; display title is exactly `SaiNam`.
 - SaiNam uses Minecraft `1.20.1`, Forge `47.4.10`, and Java `17`.
-- SaiNam contains exactly the 175 regular files and 669,790,481 bytes currently in `C:\Users\zLip\AppData\Roaming\ModrinthApp\profiles\Northvale _ BBT (1)\mods`.
+- SaiNam contains exactly the 177 regular files and 727,416,534 bytes selected from `C:\Users\zLip\AppData\Roaming\ModrinthApp\profiles\Northvale _ BBT (1)\mods`.
 - Preserve every SaiNam filename and byte, including all different versions of duplicate mods.
 - Import no config, resource pack, shader pack, or other profile content.
 - Keep SaiNam under `<App Directory>/projects/sainam` and R2 prefix `sainam/`.
@@ -386,7 +386,7 @@ expect(manifest.projects[1].files[0].url)
 - [ ] **Step 2: Write failing verifier and tracked-manifest tests**
 
 Update fixtures to contain both projects. Require Northvale's existing 752-file
-contract and SaiNam's exact 175 files/669,790,481 bytes. Assert every SaiNam
+contract and SaiNam's exact 177 files/727,416,534 bytes. Assert every SaiNam
 file is under `mods/`, uses `syncMode: 'required'`, and has a
 `/api/launcher/files/sainam/` URL.
 
@@ -431,7 +431,7 @@ Northvale constant. Return an empty Gallery for `galleryDir: null`.
 Index projects by ID, reject missing/extra/duplicate projects, retain exact
 Northvale BBTSkin checks, and validate SaiNam count, byte total, root, metadata,
 empty artwork, hashes, sizes, and required sync mode. CLI verification expects
-Northvale 752 files and SaiNam 175 files.
+Northvale 752 files and SaiNam 177 files.
 
 - [ ] **Step 6: Run manifest tests and confirm GREEN**
 
@@ -552,7 +552,7 @@ git commit -m "feat: publish project-scoped launcher packs"
 
 **Interfaces:**
 - Consumes: the approved source mod directory, Cloudflare API credentials, and BBTWeb deployment configuration
-- Produces: exact local staging, 175 R2 objects plus index, and production manifest advertising SaiNam
+- Produces: exact local staging, 177 R2 objects plus index, and production manifest advertising SaiNam
 
 - [ ] **Step 1: Import the approved source**
 
@@ -562,13 +562,13 @@ Run:
 npm run pack:import:sainam -- 'C:\Users\zLip\AppData\Roaming\ModrinthApp\profiles\Northvale _ BBT (1)\mods'
 ```
 
-Expected output reports exactly 175 files and 669,790,481 bytes.
+Expected output reports exactly 177 files and 727,416,534 bytes.
 
 - [ ] **Step 2: Verify source and staging byte-for-byte**
 
 Generate sorted relative-path/size/SHA-256 inventories for the source and
 `assets/launcher/projects/sainam/files/mods`, compare them, and require zero
-differences. Also require counts `175` and total bytes `669790481`.
+differences. Also require counts `177` and total bytes `727416534`.
 
 - [ ] **Step 3: Generate and verify the tracked manifest**
 
@@ -580,7 +580,7 @@ npm run verify:launcher-manifest
 npm test -- tests/unit/launcher-release-manifest.test.ts
 ```
 
-Expected: two projects validate; SaiNam has 175 files totaling 669,790,481
+Expected: two projects validate; SaiNam has 177 files totaling 727,416,534
 bytes.
 
 - [ ] **Step 4: Run the complete BBTWeb check before mutation**
@@ -609,7 +609,7 @@ npm run pack:upload:sainam
 ```
 
 Expected: upload summary covers `sainam/` only and the resulting remote index
-contains exactly 175 entries.
+contains exactly 177 entries.
 
 - [ ] **Step 7: Deploy the isolated verified BBTWeb worktree**
 
