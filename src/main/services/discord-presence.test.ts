@@ -42,11 +42,13 @@ describe('Discord presence state machine', () => {
     }));
   });
 
-  it('publishes Northvale activity with a fresh timestamp when a project first runs', () => {
+  it('publishes Northvale activity with a timestamp refreshed after launcher startup when a project first runs', () => {
     const rpc = createRpc();
-    const presence = createDiscordPresenceService({ rpc, now: () => 1_725_000_999_999 });
+    let now = 1_725_000_123_456;
+    const presence = createDiscordPresenceService({ rpc, now: () => now });
 
     presence.start();
+    now = 1_725_000_999_999;
     presence.updateLaunchState({ status: 'running', startedAt: '2000-01-01T00:00:00.000Z' });
 
     expect(rpc.setActivity).toHaveBeenLastCalledWith({
