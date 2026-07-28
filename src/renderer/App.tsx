@@ -57,15 +57,6 @@ const resolutionPresets = [
   { label: '2560 x 1440', width: 2560, height: 1440 }
 ];
 
-const splashStars = Array.from({ length: 52 }, (_, index) => ({
-  left: `${(index * 37 + 7) % 96}%`,
-  top: `${(index * 53 + 19) % 108}%`,
-  size: `${8 + (index % 5) * 3.2}px`,
-  duration: `${11 + (index % 7) * 1.3}s`,
-  delay: `-${(index * 1.17) % 13}s`,
-  opacity: `${0.34 + (index % 4) * 0.1}`
-}));
-
 function MicrosoftMark() {
   return (
     <span className="microsoft-mark" aria-hidden="true">
@@ -117,25 +108,6 @@ function WindowControls({ api }: { api: LauncherApi }) {
 function Splash({ onStart, api, isExiting }: { onStart: () => void; api: LauncherApi; isExiting: boolean }) {
   return (
     <section className={`screen splash ${isExiting ? 'is-exiting' : ''}`}>
-      <div className="splash-stars" aria-hidden="true">
-        {splashStars.map((star, index) => (
-          <svg
-            className="star-particle"
-            key={index}
-            viewBox="0 0 24 24"
-            style={{
-              '--star-left': star.left,
-              '--star-top': star.top,
-              '--star-size': star.size,
-              '--star-duration': star.duration,
-              '--star-delay': star.delay,
-              '--star-opacity': star.opacity
-            } as React.CSSProperties}
-          >
-            <path d="M12 0c.62 7.52 4.48 11.38 12 12-7.52.62-11.38 4.48-12 12C11.38 16.48 7.52 12.62 0 12 7.52 11.38 11.38 7.52 12 0Z" />
-          </svg>
-        ))}
-      </div>
       <div className="splash-inner">
         <div className="logo-hit">
           <div className="splash-wordmark">BEFOREBEDTIME</div>
@@ -143,19 +115,6 @@ function Splash({ onStart, api, isExiting }: { onStart: () => void; api: Launche
         <div className="family">FAMILY</div>
         <button className="start" type="button" onClick={onStart}>
           <span>Click to start</span>
-          <svg className="start-trail" aria-hidden="true" viewBox="0 0 128 18" preserveAspectRatio="none">
-            <path d="M4 11C28 4 50 15 74 9S108 5 124 10" />
-          </svg>
-          <svg className="start-comet" aria-hidden="true" viewBox="0 0 18 12">
-            <path d="M1 6h10" />
-            <circle cx="13" cy="6" r="2.5" />
-          </svg>
-          <svg className="start-spark start-spark-one" aria-hidden="true" viewBox="0 0 12 12">
-            <path d="M6 0v12M0 6h12M1.8 1.8l8.4 8.4M10.2 1.8 1.8 10.2" />
-          </svg>
-          <svg className="start-spark start-spark-two" aria-hidden="true" viewBox="0 0 12 12">
-            <path d="M6 0v12M0 6h12M1.8 1.8l8.4 8.4M10.2 1.8 1.8 10.2" />
-          </svg>
         </button>
         <div className="socials" aria-label="Social links">
           {socialLinks.map((link) => (

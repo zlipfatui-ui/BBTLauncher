@@ -169,13 +169,6 @@ beforeEach(() => {
 });
 
 describe('App', () => {
-  it('uses only animated particles in the splash star layer', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
-    const splashStarsRule = css.match(/\.splash-stars\s*\{([^}]*)\}/s)?.[1] || '';
-
-    expect(splashStarsRule).not.toContain('radial-gradient');
-  });
-
   it('keeps the splash wordmark large without a white glow', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
     const splashWordmarkRule = css.match(/\.splash-wordmark\s*\{([^}]*)\}/s)?.[1] || '';
@@ -183,13 +176,6 @@ describe('App', () => {
     expect(splashWordmarkRule).toContain('font-size: 80px');
     expect(splashWordmarkRule).not.toMatch(/text-shadow:\s*[^;]*255,\s*255,\s*255/i);
     expect(splashWordmarkRule).not.toMatch(/filter:\s*drop-shadow/i);
-  });
-
-  it('renders animated star particles on the splash screen', () => {
-    const { container } = render(<App api={makeApi()} />);
-
-    expect(container.querySelectorAll('.splash-stars .star-particle').length).toBeGreaterThanOrEqual(48);
-    expect(container.querySelectorAll('.splash-stars .star-particle path').length).toBeGreaterThanOrEqual(48);
   });
 
   it('uses a text wordmark on the splash screen and the BBT image asset in the topbar', async () => {
@@ -302,25 +288,21 @@ describe('App', () => {
     expect(screen.getByRole('tab', { name: 'SHADERS 0' })).toBeInTheDocument();
   });
 
-  it('keeps the Dream Trail decorative and starts only when Click to start is clicked', async () => {
+  it('keeps the minimal start CTA as the only splash transition trigger', async () => {
     vi.useFakeTimers();
 
     try {
       const { container } = render(<App api={makeApi()} />);
+      const startButton = screen.getByRole('button', { name: /click to start/i });
+
+      expect(container.querySelector('.splash-stars')).not.toBeInTheDocument();
+      expect(container.querySelector('.star-particle')).not.toBeInTheDocument();
+      expect(startButton.querySelector('svg')).not.toBeInTheDocument();
+      expect(startButton).toHaveTextContent(/^Click to start$/);
 
       fireEvent.click(container.querySelector('.splash') as HTMLElement);
       expect(screen.queryByRole('button', { name: /login to microsoft/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^beforebedtime$/i })).not.toBeInTheDocument();
-
-      const startButton = screen.getByRole('button', { name: /click to start/i });
-      const trail = startButton.querySelector('.start-trail');
-      const comet = startButton.querySelector('.start-comet');
-      const sparks = startButton.querySelectorAll('.start-spark');
-
-      expect(trail).toHaveAttribute('aria-hidden', 'true');
-      expect(comet).toHaveAttribute('aria-hidden', 'true');
-      expect(sparks).toHaveLength(2);
-      sparks.forEach((spark) => expect(spark).toHaveAttribute('aria-hidden', 'true'));
 
       fireEvent.mouseEnter(startButton);
       fireEvent.focus(startButton);
@@ -347,39 +329,6 @@ describe('App', () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it('defines the Dream Trail CTA interaction states', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
-    const startRule = css.match(/\.start\s*\{([^}]*)\}/s)?.[1] || '';
-    const trailRule = css.match(/\.start-trail path\s*\{([^}]*)\}/s)?.[1] || '';
-    const trailAnimationRule = css.match(/\.start:hover \.start-trail path,\s*\.start:focus-visible \.start-trail path\s*\{([^}]*)\}/s)?.[1] || '';
-    const cometAnimationRule = css.match(/\.start:hover \.start-comet,\s*\.start:focus-visible \.start-comet\s*\{([^}]*)\}/s)?.[1] || '';
-    const sparkOneAnimationRule = css.match(/\.start:hover \.start-spark-one,\s*\.start:focus-visible \.start-spark-one\s*\{([^}]*)\}/s)?.[1] || '';
-    const sparkTwoAnimationRule = css.match(/\.start:hover \.start-spark-two,\s*\.start:focus-visible \.start-spark-two\s*\{([^}]*)\}/s)?.[1] || '';
-    const activeRule = css.match(/\.start:active\s*\{([^}]*)\}/s)?.[1] || '';
-    const reducedMotionCss = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*)\}\s*$/)?.[1] || '';
-    const reducedTrailRule = reducedMotionCss.match(/\.start:hover \.start-trail path,\s*\.start:focus-visible \.start-trail path\s*\{([^}]*)\}/s)?.[1] || '';
-    const reducedCometRule = reducedMotionCss.match(/\.start:hover \.start-comet,\s*\.start:focus-visible \.start-comet\s*\{([^}]*)\}/s)?.[1] || '';
-    const reducedSparkRule = reducedMotionCss.match(/\.start:hover \.start-spark,\s*\.start:focus-visible \.start-spark\s*\{([^}]*)\}/s)?.[1] || '';
-
-    expect(startRule).toContain('font-family: Georgia, "Times New Roman", serif;');
-    expect(startRule).toContain('font-size: 17px;');
-    expect(startRule).toContain('font-style: italic;');
-    expect(startRule).toContain('padding: 0 8px 8px;');
-    expect(trailRule).toContain('stroke-dasharray: 156;');
-    expect(trailRule).toContain('stroke-dashoffset: 156;');
-    expect(trailRule).toContain('opacity: 0;');
-    expect(trailAnimationRule).toContain('start-trail-draw 720ms');
-    expect(cometAnimationRule).toContain('start-comet-flight 1.05s');
-    expect(cometAnimationRule).toContain('80ms both;');
-    expect(sparkOneAnimationRule).toContain('720ms both;');
-    expect(sparkTwoAnimationRule).toContain('860ms both;');
-    expect(activeRule).toContain('transform: scale(0.98);');
-    expect(reducedTrailRule).toContain('animation: none;');
-    expect(reducedTrailRule).toContain('stroke-dashoffset: 0;');
-    expect(reducedCometRule).toContain('animation: none;');
-    expect(reducedSparkRule).toContain('animation: none;');
   });
 
   it('opens the published Terms of Service and Privacy Policy pages', async () => {

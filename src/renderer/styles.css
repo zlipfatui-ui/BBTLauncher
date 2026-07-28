@@ -168,48 +168,6 @@ button {
   overflow: hidden;
 }
 
-.splash-stars {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.star-particle {
-  position: absolute;
-  left: var(--star-left);
-  top: var(--star-top);
-  width: var(--star-size);
-  height: var(--star-size);
-  overflow: visible;
-  color: rgba(255, 255, 255, 0.9);
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.42));
-  opacity: 0;
-  animation: star-rise var(--star-duration) linear var(--star-delay) infinite;
-  will-change: transform, opacity;
-}
-
-.star-particle path {
-  fill: currentColor;
-}
-
-@keyframes star-rise {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 16vh, 0) rotate(0deg) scale(0.55);
-  }
-  12% {
-    opacity: var(--star-opacity);
-  }
-  72% {
-    opacity: var(--star-opacity);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(14px, -112vh, 0) rotate(110deg) scale(1.08);
-  }
-}
-
 .splash.is-exiting .splash-inner {
   animation: splash-zoom-exit 220ms cubic-bezier(0.2, 0.85, 0.25, 1) both;
 }
@@ -250,19 +208,34 @@ button {
 
 .start {
   position: relative;
-  display: inline-block;
+  display: inline-grid;
+  place-items: center;
+  width: clamp(150px, 18vw, 190px);
   margin-top: 26px;
-  padding: 0 8px 8px;
+  padding: 0 12px 14px;
   border: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.78);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 17px;
-  font-style: italic;
-  line-height: 1.1;
-  text-shadow: 0 0 10px rgba(186, 221, 255, 0.46), 0 0 20px rgba(130, 186, 244, 0.2);
+  color: #fff;
+  font-family: "Inter Tight", "Segoe UI Variable Display", "Segoe UI", Arial, sans-serif;
+  font-size: clamp(15px, 1.4vw, 17px);
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
   cursor: pointer;
-  transition: color 180ms ease, text-shadow 180ms ease, transform 180ms ease;
+  transition: transform 180ms ease;
+}
+
+.start::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: clamp(88px, 10vw, 112px);
+  height: 1px;
+  background: #fff;
+  transform: translateX(-50%);
+  transition: width 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
 }
 
 .auth-text::after {
@@ -276,151 +249,23 @@ button {
   transform: translateX(-50%);
 }
 
-.start-trail {
-  position: absolute;
-  left: 50%;
-  bottom: -5px;
-  width: 128px;
-  height: 18px;
-  overflow: visible;
-  pointer-events: none;
-  transform: translateX(-50%);
-}
-
-.start-trail path {
-  fill: none;
-  stroke: rgba(199, 229, 255, 0.94);
-  stroke-linecap: round;
-  stroke-width: 1.25;
-  stroke-dasharray: 156;
-  stroke-dashoffset: 156;
-  opacity: 0;
-  filter: drop-shadow(0 0 3px rgba(156, 209, 255, 0.82));
-}
-
-.start-comet,
-.start-spark {
-  position: absolute;
-  overflow: visible;
-  pointer-events: none;
-  opacity: 0;
-}
-
-.start-comet {
-  left: calc(50% - 62px);
-  bottom: -2px;
-  width: 18px;
-  height: 12px;
-  color: rgba(223, 242, 255, 0.98);
-  filter: drop-shadow(0 0 4px rgba(164, 211, 255, 0.88));
-}
-
-.start-comet path,
-.start-comet circle,
-.start-spark path {
-  fill: currentColor;
-  stroke: currentColor;
-  stroke-linecap: round;
-}
-
-.start-comet path {
-  stroke-width: 1.1;
-}
-
-.start-spark {
-  left: calc(50% + 51px);
-  bottom: 0;
-  width: 10px;
-  height: 10px;
-  color: rgba(222, 242, 255, 0.96);
-  filter: drop-shadow(0 0 4px rgba(156, 211, 255, 0.86));
-}
-
-.start-spark path {
-  fill: none;
-  stroke-width: 0.9;
-}
-
-.start-spark-two {
-  left: calc(50% + 44px);
-  bottom: 7px;
-  width: 7px;
-  height: 7px;
-}
-
 .start:hover,
 .start:focus-visible {
-  color: rgba(236, 247, 255, 1);
-  text-shadow: 0 0 12px rgba(202, 231, 255, 0.72), 0 0 28px rgba(125, 188, 246, 0.4);
   transform: translateY(-1px);
 }
 
-.start:hover .start-trail path,
-.start:focus-visible .start-trail path {
-  opacity: 0.92;
-  animation: start-trail-draw 720ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
-}
-
-.start:hover .start-comet,
-.start:focus-visible .start-comet {
-  animation: start-comet-flight 1.05s cubic-bezier(0.2, 0.76, 0.28, 1) 80ms both;
-}
-
-.start:hover .start-spark-one,
-.start:focus-visible .start-spark-one {
-  animation: start-spark-pop 360ms ease-out 720ms both;
-}
-
-.start:hover .start-spark-two,
-.start:focus-visible .start-spark-two {
-  animation: start-spark-pop 300ms ease-out 860ms both;
+.start:hover::after,
+.start:focus-visible::after {
+  width: clamp(132px, 15vw, 168px);
 }
 
 .start:active {
-  transform: scale(0.98);
+  transform: scale(0.985);
 }
 
 .start:focus-visible {
-  outline: 1px solid rgba(195, 227, 255, 0.78);
-  outline-offset: 5px;
-}
-
-@keyframes start-trail-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes start-comet-flight {
-  0% {
-    opacity: 0;
-    transform: translate(-4px, 4px) scale(0.65);
-  }
-  16% {
-    opacity: 1;
-  }
-  84% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(111px, -2px) scale(0.82);
-  }
-}
-
-@keyframes start-spark-pop {
-  0% {
-    opacity: 0;
-    transform: scale(0.2) rotate(0deg);
-  }
-  45% {
-    opacity: 1;
-    transform: scale(1) rotate(24deg);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.42) rotate(46deg);
-  }
+  outline: 1px solid #fff;
+  outline-offset: 6px;
 }
 
 .socials {
@@ -1805,22 +1650,8 @@ button {
     transition-duration: 1ms;
   }
 
-  .start:hover .start-trail path,
-  .start:focus-visible .start-trail path {
-    opacity: 0.92;
-    animation: none;
-    stroke-dashoffset: 0;
-  }
-
-  .start:hover .start-comet,
-  .start:focus-visible .start-comet {
-    opacity: 0.82;
-    animation: none;
-  }
-
-  .start:hover .start-spark,
-  .start:focus-visible .start-spark {
-    opacity: 0.88;
-    animation: none;
+  .start,
+  .start::after {
+    transition: none;
   }
 }
