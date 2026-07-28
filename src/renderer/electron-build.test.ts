@@ -50,6 +50,7 @@ describe('Electron production build config', () => {
     );
     expect(packageJson.build.appId).toBe('com.beforebedtime.launcher');
     expect(packageJson.build.productName).toBe('BeforeBedtime Launcher');
+    expect(packageJson.build.electronDist).toBe('node_modules/electron/dist');
     expect(packageJson.build.directories.output).toBe('../../BBTLauncher-release');
     expect(packageJson.build.win.icon).toBe('public/assets/images/logos/BBT.ico');
     expect(packageJson.build.win.target).toEqual([

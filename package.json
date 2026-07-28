@@ -49,6 +49,7 @@
   "build": {
     "appId": "com.beforebedtime.launcher",
     "productName": "BeforeBedtime Launcher",
+    "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "../../BBTLauncher-release"
     },
