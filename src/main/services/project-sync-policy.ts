@@ -6,7 +6,9 @@ import {
   isPackAuthorModBypassPath,
   isPackAuthorMode
 } from './managed-project-index.js';
-import { assertInsideDirectory } from './path-safety.js';
+import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
+
+const RETIRED_SAINAM_FANCYMENU_MOD_PATH = 'mods/fancymenu_forge_3.9.3_MC_1.20.1.jar';
 
 export function shouldBypassExistingProjectSync(rootDir: string, projectId: string): boolean {
   if (projectId !== SAINAM_PROJECT_ID || !isPackAuthorMode(rootDir)) return false;
@@ -27,7 +29,9 @@ export function shouldBypassExistingProjectSync(rootDir: string, projectId: stri
 }
 
 export function shouldPreserveStaleManagedFile(projectId: string, filePath: string): boolean {
-  return projectId === SAINAM_PROJECT_ID && isModPath(filePath);
+  return projectId === SAINAM_PROJECT_ID
+    && isModPath(filePath)
+    && normalizeProjectFilePath(filePath) !== RETIRED_SAINAM_FANCYMENU_MOD_PATH;
 }
 
 export function shouldBypassPackAuthorManifestFile(

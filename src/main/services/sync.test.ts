@@ -588,6 +588,37 @@ describe('project sync', () => {
     }
   });
 
+  it('removes the normalized legacy FancyMenu mod for normal SaiNam players', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-stale-fancymenu-'));
+    const projectRoot = join(root, 'projects', 'sainam');
+
+    try {
+      await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await writeFile(join(projectRoot, 'mods', 'test.jar'), 'pack');
+      await writeFile(join(projectRoot, 'mods', 'fancymenu_forge_3.9.3_MC_1.20.1.jar'), 'legacy FancyMenu');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods\\fancymenu_forge_3.9.3_MC_1.20.1.jar', syncMode: 'required' }
+      ]);
+
+      await syncProject({
+        rootDir: root,
+        projectId: 'sainam',
+        manifest: asSaiNam(makeManifest('pack')),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('clean manifest file should not be downloaded');
+        }
+      });
+
+      await expect(
+        readFile(join(projectRoot, 'mods', 'fancymenu_forge_3.9.3_MC_1.20.1.jar'), 'utf8')
+      ).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('still removes a stale managed SaiNam config for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-stale-config-'));
     const projectRoot = join(root, 'projects', 'sainam');

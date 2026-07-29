@@ -458,6 +458,31 @@ describe('project state inspection', () => {
     }
   });
 
+  it('reports the normalized legacy FancyMenu mod as stale for normal players', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-stale-fancymenu-'));
+    try {
+      const mods = join(root, 'projects', 'sainam', 'mods');
+      await mkdir(mods, { recursive: true });
+      await writeFile(join(mods, 'test.jar'), 'pack');
+      await writeFile(join(mods, 'fancymenu_forge_3.9.3_MC_1.20.1.jar'), 'legacy FancyMenu');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods\\fancymenu_forge_3.9.3_MC_1.20.1.jar', syncMode: 'required' }
+      ]);
+
+      await expect(
+        inspectProjectState(root, 'sainam', asSaiNam(manifestFor('pack')))
+      ).resolves.toEqual({
+        state: 'update',
+        missing: 0,
+        changed: 0,
+        stale: 1
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('still reports a removed managed SaiNam config as stale for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-stale-config-'));
     try {
