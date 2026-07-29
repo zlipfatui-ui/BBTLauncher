@@ -46,6 +46,11 @@ Cloudflare Workers/R2, electron-builder, GitHub Releases
 - [ ] Upload new SaiNam pack objects before publishing the new manifest.
 - [ ] Fetch/rebase, verify fast-forward, and push BBTWeb without force.
 - [ ] Deploy the BBTWeb Worker.
+- [ ] Add a failing route test proving the approved SaiNam
+  `config/fancymenu/**` and `fancymenu_data/**` URLs stream from R2 while an
+  unrelated SaiNam config and nested mod remain rejected.
+- [ ] Extend the Worker route with the same exact SaiNam allow-list used by
+  manifest generation, run GREEN/full checks, push, and redeploy.
 - [ ] Verify production SaiNam and Northvale manifest invariants.
 - [ ] Verify the FancyMenu 3.8.1, config, and data URLs return HTTP 200 and the
   old 3.9.3 path is absent from the SaiNam manifest.
