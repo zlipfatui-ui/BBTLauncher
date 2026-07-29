@@ -18,7 +18,8 @@ import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.j
 import {
   shouldBypassExistingProjectSync,
   shouldBypassPackAuthorManifestFile,
-  shouldPreserveStaleManagedFile
+  shouldPreserveStaleManagedFile,
+  shouldTreatRetiredManagedFileAsRepair
 } from './project-sync-policy.js';
 
 interface ManagedManifestFile {
@@ -113,10 +114,15 @@ export async function inspectProjectState(
   );
   let stale = 0;
   for (const file of managedIndex.files) {
-    if (shouldPreserveStaleManagedFile(projectId, file.path)) continue;
     if (effectiveManagedIndexSyncMode(rootDir, file) !== 'required') continue;
     if (requiredManifestPaths.has(file.path)) continue;
-    if (existsSync(assertInsideDirectory(projectDir, join(projectDir, file.path)))) {
+    const destination = assertInsideDirectory(projectDir, join(projectDir, file.path));
+    if (shouldTreatRetiredManagedFileAsRepair(projectId, file.path) && existsSync(destination)) {
+      changed += 1;
+      continue;
+    }
+    if (shouldPreserveStaleManagedFile(projectId, file.path)) continue;
+    if (existsSync(destination)) {
       stale += 1;
     }
   }

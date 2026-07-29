@@ -619,6 +619,45 @@ describe('project sync', () => {
     }
   });
 
+  it('removes only the retired Epic Fight mod for normal SaiNam players', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-retired-epic-fight-'));
+    const projectRoot = join(root, 'projects', 'sainam');
+
+    try {
+      await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await writeFile(join(projectRoot, 'mods', 'test.jar'), 'pack');
+      await writeFile(
+        join(projectRoot, 'mods', 'epic-fight-20.14.17-mc1.20.1-forge.jar'),
+        'retired Epic Fight'
+      );
+      await writeFile(join(projectRoot, 'mods', 'player-added.jar'), 'keep me');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods\\epic-fight-20.14.17-mc1.20.1-forge.jar', syncMode: 'required' },
+        { path: 'mods/player-added.jar', syncMode: 'required' }
+      ]);
+
+      await syncProject({
+        rootDir: root,
+        projectId: 'sainam',
+        manifest: asSaiNam(makeManifest('pack')),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('clean manifest file should not be downloaded');
+        }
+      });
+
+      await expect(
+        readFile(join(projectRoot, 'mods', 'epic-fight-20.14.17-mc1.20.1-forge.jar'), 'utf8')
+      ).rejects.toThrow();
+      await expect(readFile(join(projectRoot, 'mods', 'player-added.jar'), 'utf8')).resolves.toBe(
+        'keep me'
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('still removes a stale managed SaiNam config for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-stale-config-'));
     const projectRoot = join(root, 'projects', 'sainam');

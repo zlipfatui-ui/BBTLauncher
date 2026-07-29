@@ -483,6 +483,34 @@ describe('project state inspection', () => {
     }
   });
 
+  it('reports the retired Epic Fight mod as changed so normal SaiNam players get REPAIR', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-retired-epic-fight-'));
+    try {
+      const mods = join(root, 'projects', 'sainam', 'mods');
+      await mkdir(mods, { recursive: true });
+      await writeFile(join(mods, 'test.jar'), 'pack');
+      await writeFile(
+        join(mods, 'epic-fight-20.14.17-mc1.20.1-forge.jar'),
+        'retired Epic Fight'
+      );
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods\\epic-fight-20.14.17-mc1.20.1-forge.jar', syncMode: 'required' }
+      ]);
+
+      await expect(
+        inspectProjectState(root, 'sainam', asSaiNam(manifestFor('pack')))
+      ).resolves.toEqual({
+        state: 'update',
+        missing: 0,
+        changed: 1,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('still reports a removed managed SaiNam config as stale for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-stale-config-'));
     try {

@@ -9,6 +9,8 @@ import {
 import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
 
 const RETIRED_SAINAM_FANCYMENU_MOD_PATH = 'mods/fancymenu_forge_3.9.3_MC_1.20.1.jar';
+const RETIRED_SAINAM_EPIC_FIGHT_MOD_PATH =
+  'mods/epic-fight-20.14.17-mc1.20.1-forge.jar';
 
 export function shouldBypassExistingProjectSync(rootDir: string, projectId: string): boolean {
   if (projectId !== SAINAM_PROJECT_ID || !isPackAuthorMode(rootDir)) return false;
@@ -29,9 +31,18 @@ export function shouldBypassExistingProjectSync(rootDir: string, projectId: stri
 }
 
 export function shouldPreserveStaleManagedFile(projectId: string, filePath: string): boolean {
+  if (projectId !== SAINAM_PROJECT_ID || !isModPath(filePath)) return false;
+  const normalizedPath = normalizeProjectFilePath(filePath);
+  return normalizedPath !== RETIRED_SAINAM_FANCYMENU_MOD_PATH
+    && normalizedPath !== RETIRED_SAINAM_EPIC_FIGHT_MOD_PATH;
+}
+
+export function shouldTreatRetiredManagedFileAsRepair(
+  projectId: string,
+  filePath: string
+): boolean {
   return projectId === SAINAM_PROJECT_ID
-    && isModPath(filePath)
-    && normalizeProjectFilePath(filePath) !== RETIRED_SAINAM_FANCYMENU_MOD_PATH;
+    && normalizeProjectFilePath(filePath) === RETIRED_SAINAM_EPIC_FIGHT_MOD_PATH;
 }
 
 export function shouldBypassPackAuthorManifestFile(
