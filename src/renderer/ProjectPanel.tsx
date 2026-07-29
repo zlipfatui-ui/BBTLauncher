@@ -214,7 +214,7 @@ export function ProjectPanel({
           ) : null}
           <div className="project-hero-copy">
             <span className="project-eyebrow">
-              {isNorthvale ? 'NORTHVALE / SEASON 01' : project.title.toUpperCase()}
+              {isNorthvale ? 'NORTHVALE / SEASON 01' : 'SAINAM / SEASON TEST'}
             </span>
             <h1>{isNorthvale ? 'เริ่มการผจญภัยแห่งนี้' : project.title.toUpperCase()}</h1>
             <p>

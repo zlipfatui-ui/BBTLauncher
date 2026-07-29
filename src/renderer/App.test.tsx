@@ -225,6 +225,7 @@ describe('App', () => {
     expect(api.settings.save).toHaveBeenCalledWith({ selectedProject: 'sainam' });
     expect(api.project.getState).toHaveBeenLastCalledWith('sainam');
     expect(screen.queryByText('NORTHVALE / SEASON 01')).not.toBeInTheDocument();
+    expect(screen.getByText('SAINAM / SEASON TEST')).toHaveClass('project-eyebrow');
     expect(screen.getByRole('heading', { level: 1, name: 'SAINAM' })).toBeInTheDocument();
     expect(
       screen.getByText('ใบไม้ที่ร่วงโรย แสงแดดอันอบอุ่น และค่ายฤดูใบไม้ร่วงที่ไม่มีใคร…กลับออกมาเหมือนเดิม')

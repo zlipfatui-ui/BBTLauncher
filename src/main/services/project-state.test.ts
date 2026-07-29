@@ -391,6 +391,48 @@ describe('project state inspection', () => {
     }
   });
 
+  it('reports missing mods when a SaiNam owner project exists but has never installed its pack', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-owner-empty-pack-'));
+    try {
+      await mkdir(join(root, 'projects', 'sainam', 'mods'), { recursive: true });
+      await mkdir(join(root, 'projects', 'sainam', 'config'), { recursive: true });
+      await writeFile(join(root, 'projects', 'sainam', 'config', 'forge-client.toml'), 'generated');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+
+      await expect(
+        inspectProjectState(root, 'sainam', asSaiNam(manifestFor('official mod')))
+      ).resolves.toEqual({
+        state: 'update',
+        missing: 1,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('returns ready for a SaiNam owner with installed mods even without a managed index', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-owner-seeded-pack-'));
+    try {
+      const mods = join(root, 'projects', 'sainam', 'mods');
+      await mkdir(mods, { recursive: true });
+      await writeFile(join(mods, 'owner.jar'), 'owner controlled');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+
+      await expect(
+        inspectProjectState(root, 'sainam', asSaiNam(manifestFor('official mod')))
+      ).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('does not report a removed managed SaiNam mod as stale for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-stale-mod-'));
     try {

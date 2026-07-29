@@ -527,6 +527,35 @@ describe('project sync', () => {
     }
   });
 
+  it('installs missing mods when a SaiNam owner project exists without an installed pack', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-owner-empty-pack-'));
+
+    try {
+      await mkdir(join(root, 'projects', 'sainam', 'mods'), { recursive: true });
+      await mkdir(join(root, 'projects', 'sainam', 'config'), { recursive: true });
+      await writeFile(join(root, 'projects', 'sainam', 'config', 'forge-client.toml'), 'generated');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'sainam',
+        manifest: asSaiNam(makeManifest('official mod')),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => new Response('official mod')
+      });
+
+      expect(result.downloaded).toBe(1);
+      await expect(
+        readFile(join(root, 'projects', 'sainam', 'mods', 'test.jar'), 'utf8')
+      ).resolves.toBe('official mod');
+      await expect(
+        readFile(join(root, 'metadata', 'sainam', 'managed-files.json'), 'utf8')
+      ).resolves.toContain('mods/test.jar');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('preserves a removed managed SaiNam mod for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-stale-mod-'));
     const projectRoot = join(root, 'projects', 'sainam');
