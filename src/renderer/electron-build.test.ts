@@ -3,13 +3,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 describe('Electron production build config', () => {
-  it('publishes launcher release metadata as version 0.3.1', () => {
+  it('publishes launcher release metadata as version 0.3.2', () => {
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'));
     const packageLock = JSON.parse(readFileSync(resolve(process.cwd(), 'package-lock.json'), 'utf8'));
 
-    expect(packageJson.version).toBe('0.3.1');
-    expect(packageLock.version).toBe('0.3.1');
-    expect(packageLock.packages[''].version).toBe('0.3.1');
+    expect(packageJson.version).toBe('0.3.2');
+    expect(packageLock.version).toBe('0.3.2');
+    expect(packageLock.packages[''].version).toBe('0.3.2');
   });
 
   it('uses relative asset URLs so file:// can load the renderer bundle', () => {
