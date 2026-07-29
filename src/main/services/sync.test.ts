@@ -98,6 +98,14 @@ function makeFileManifest(path: string, body: string, syncMode?: 'required' | 's
   return manifest;
 }
 
+function asSaiNam(manifest: LauncherManifest): LauncherManifest {
+  const project = manifest.projects[0];
+  project.id = 'sainam';
+  project.title = 'SaiNam';
+  project.minecraft.loaderVersion = '47.4.10';
+  return manifest;
+}
+
 async function writeManagedIndex(root: string, projectId: string, files: Array<{ path: string; syncMode: 'required' | 'seed' }>) {
   const metadataDir = join(root, 'metadata', projectId);
   await mkdir(metadataDir, { recursive: true });
@@ -446,6 +454,159 @@ describe('project sync', () => {
       await expect(readFile(join(root, 'metadata', 'northvale', 'managed-files.json'), 'utf8')).resolves.not.toContain(
         'mods/'
       );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not touch files or metadata when a SaiNam owner syncs an existing project', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-owner-'));
+    const projectRoot = join(root, 'projects', 'sainam');
+
+    try {
+      await mkdir(join(projectRoot, 'config'), { recursive: true });
+      await writeFile(join(projectRoot, 'config', 'sainam.toml'), 'owner changed config');
+      await writeFile(join(projectRoot, 'config', 'old-managed.toml'), 'owner retained config');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'config/sainam.toml', syncMode: 'required' },
+        { path: 'config/old-managed.toml', syncMode: 'required' }
+      ]);
+      const indexPath = join(root, 'metadata', 'sainam', 'managed-files.json');
+      const indexBefore = await readFile(indexPath, 'utf8');
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'sainam',
+        manifest: asSaiNam(makeFileManifest('config/sainam.toml', 'official config', 'required')),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('owner sync must not fetch manifest files');
+        }
+      });
+
+      expect(result).toEqual({
+        status: 'ready',
+        downloaded: 0,
+        skipped: 0,
+        totalBytes: 0,
+        downloadedBytes: 0
+      });
+      await expect(readFile(join(projectRoot, 'config', 'sainam.toml'), 'utf8')).resolves.toBe(
+        'owner changed config'
+      );
+      await expect(readFile(join(projectRoot, 'config', 'old-managed.toml'), 'utf8')).resolves.toBe(
+        'owner retained config'
+      );
+      await expect(readFile(indexPath, 'utf8')).resolves.toBe(indexBefore);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('performs the normal first install for a SaiNam owner without a project directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-owner-install-'));
+
+    try {
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'sainam',
+        manifest: asSaiNam(makeManifest('official mod')),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => new Response('official mod')
+      });
+
+      expect(result.downloaded).toBe(1);
+      await expect(
+        readFile(join(root, 'projects', 'sainam', 'mods', 'test.jar'), 'utf8')
+      ).resolves.toBe('official mod');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves a removed managed SaiNam mod for normal players', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-stale-mod-'));
+    const projectRoot = join(root, 'projects', 'sainam');
+
+    try {
+      await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await writeFile(join(projectRoot, 'mods', 'test.jar'), 'pack');
+      await writeFile(join(projectRoot, 'mods', 'removed.jar'), 'preserved old mod');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods/removed.jar', syncMode: 'required' }
+      ]);
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'sainam',
+        manifest: asSaiNam(makeManifest('pack')),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('clean manifest file should not be downloaded');
+        }
+      });
+
+      expect(result.downloaded).toBe(0);
+      await expect(readFile(join(projectRoot, 'mods', 'removed.jar'), 'utf8')).resolves.toBe(
+        'preserved old mod'
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('still removes a stale managed SaiNam config for normal players', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-stale-config-'));
+    const projectRoot = join(root, 'projects', 'sainam');
+
+    try {
+      await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await mkdir(join(projectRoot, 'config'), { recursive: true });
+      await writeFile(join(projectRoot, 'mods', 'test.jar'), 'pack');
+      await writeFile(join(projectRoot, 'config', 'removed.toml'), 'stale config');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'config/removed.toml', syncMode: 'required' }
+      ]);
+
+      await syncProject({
+        rootDir: root,
+        projectId: 'sainam',
+        manifest: asSaiNam(makeManifest('pack')),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => {
+          throw new Error('clean manifest file should not be downloaded');
+        }
+      });
+
+      await expect(readFile(join(projectRoot, 'config', 'removed.toml'), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('replaces a changed same-path SaiNam mod for normal players', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-repair-'));
+    const projectMods = join(root, 'projects', 'sainam', 'mods');
+
+    try {
+      await mkdir(projectMods, { recursive: true });
+      await writeFile(join(projectMods, 'test.jar'), 'damaged mod');
+
+      const result = await syncProject({
+        rootDir: root,
+        projectId: 'sainam',
+        manifest: asSaiNam(makeManifest('official mod')),
+        baseUrl: 'https://bbt.example',
+        fetchImpl: async () => new Response('official mod')
+      });
+
+      expect(result.downloaded).toBe(1);
+      await expect(readFile(join(projectMods, 'test.jar'), 'utf8')).resolves.toBe('official mod');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

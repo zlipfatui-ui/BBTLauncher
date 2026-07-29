@@ -7,7 +7,8 @@ import type {
   ProjectLaunchState,
   ProjectProgressEvent
 } from '../shared/types';
-import { NORTHVALE_PROJECT_ID } from '../shared/types';
+import type { ProjectStateResult } from '../shared/types';
+import { NORTHVALE_PROJECT_ID, SAINAM_PROJECT_ID } from '../shared/types';
 import type { LauncherApi } from './launcherApi';
 import { resolveRendererAssetUrl } from './assets';
 import { FolderIcon } from './icons';
@@ -39,6 +40,7 @@ export function ProjectPanel({
 }) {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [projectState, setProjectState] = useState<ProjectActionState>('checking');
+  const [projectStateResult, setProjectStateResult] = useState<ProjectStateResult | null>(null);
   const [launchState, setLaunchState] = useState<ProjectLaunchState>({ status: 'idle' });
   const [status, setStatus] = useState('CHECKING');
   const [busy, setBusy] = useState(false);
@@ -46,12 +48,15 @@ export function ProjectPanel({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerLayout, setDrawerLayout] = useState<ContentDrawerLayout>('overlay');
   const [contentRevision, setContentRevision] = useState(0);
-  const visibleDots = [0, 1, 2];
   const gallery = project.artwork.gallery;
+  const visibleDots = Array.from({ length: Math.min(3, gallery.length) }, (_, index) => index);
   const activeImage = gallery.length
     ? resolveRendererAssetUrl(gallery[galleryIndex % gallery.length])
     : null;
   const isNorthvale = project.id === NORTHVALE_PROJECT_ID;
+  const repairRequired = project.id === SAINAM_PROJECT_ID
+    && projectStateResult?.state === 'update'
+    && (projectStateResult.missing > 0 || projectStateResult.changed > 0);
 
   useEffect(() => {
     if (gallery.length <= 1) return undefined;
@@ -109,17 +114,21 @@ export function ProjectPanel({
   useEffect(() => {
     let active = true;
     setProjectState('checking');
+    setProjectStateResult(null);
     setStatus('CHECKING');
     setProgressPercent(null);
     void api.project.getState(project.id)
       .then((result) => {
         if (!active) return;
         setProjectState(result.state);
+        setProjectStateResult(result);
         setStatus(
           result.state === 'install'
             ? 'NOT INSTALLED'
             : result.state === 'update'
-              ? 'UPDATE !'
+              ? project.id === SAINAM_PROJECT_ID && (result.missing > 0 || result.changed > 0)
+                ? 'REPAIR REQUIRED'
+                : 'UPDATE !'
               : project.statusText
         );
       })
@@ -141,11 +150,12 @@ export function ProjectPanel({
     if (projectState !== 'ready') {
       setBusy(true);
       setProgressPercent(0);
-      setStatus(projectState === 'install' ? 'INSTALLING' : 'UPDATING');
+      setStatus(projectState === 'install' ? 'INSTALLING' : repairRequired ? 'REPAIRING' : 'UPDATING');
       try {
         await api.project.sync(project.id);
         setContentRevision((value) => value + 1);
         setProjectState('ready');
+        setProjectStateResult({ state: 'ready', missing: 0, changed: 0, stale: 0 });
         setStatus(project.statusText);
         setProgressPercent(null);
       } catch {
@@ -187,7 +197,7 @@ export function ProjectPanel({
       : projectState === 'install'
         ? 'INSTALL'
         : projectState === 'update'
-          ? 'UPDATE'
+          ? repairRequired ? 'REPAIR' : 'UPDATE'
           : 'PLAY';
   const actionText = busy ? status : actionLabel;
   const actionDisabled = launchState.status === 'stopping'
@@ -207,7 +217,11 @@ export function ProjectPanel({
               {isNorthvale ? 'NORTHVALE / SEASON 01' : project.title.toUpperCase()}
             </span>
             <h1>{isNorthvale ? 'เริ่มการผจญภัยแห่งนี้' : project.title.toUpperCase()}</h1>
-            <p>{isNorthvale ? 'ความฝันหรือความจริงกันแน่ ?' : 'สายน้ำไหลหลาก'}</p>
+            <p>
+              {isNorthvale
+                ? 'ความฝันหรือความจริงกันแน่ ?'
+                : 'ใบไม้ที่ร่วงโรย แสงแดดอันอบอุ่น และค่ายฤดูใบไม้ร่วงที่ไม่มีใคร…กลับออกมาเหมือนเดิม'}
+            </p>
             <div className="project-hero-actions">
               <button className="play-button" type="button" onClick={runProjectAction} disabled={actionDisabled} aria-label={actionText}>
                 {progressPercent !== null ? (
@@ -234,7 +248,7 @@ export function ProjectPanel({
               {visibleDots.map((dot) => (
                 <button
                   key={dot}
-                  className={`project-dot ${dot === galleryIndex % 3 ? 'active' : ''}`}
+                  className={`project-dot ${dot === galleryIndex % visibleDots.length ? 'active' : ''}`}
                   type="button"
                   aria-label={`Gallery image ${dot + 1}`}
                   onClick={() => setGalleryIndex(dot)}

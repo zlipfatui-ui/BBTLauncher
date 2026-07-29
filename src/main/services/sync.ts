@@ -12,13 +12,17 @@ import {
 import {
   effectiveManagedIndexSyncMode,
   effectiveSyncMode,
-  isPackAuthorModBypassPath,
   isResourcePackPath,
   readManagedProjectIndex,
   type ManagedProjectIndex,
   type ManagedProjectFileRecord,
   writeManagedProjectIndex
 } from './managed-project-index.js';
+import {
+  shouldBypassExistingProjectSync,
+  shouldBypassPackAuthorManifestFile,
+  shouldPreserveStaleManagedFile
+} from './project-sync-policy.js';
 
 export interface SyncProjectOptions {
   rootDir: string;
@@ -48,11 +52,11 @@ interface SyncManifestFile {
   syncMode: LauncherFileSyncMode;
 }
 
-function syncManifestFiles(rootDir: string, files: LauncherFile[]): SyncManifestFile[] {
+function syncManifestFiles(rootDir: string, projectId: string, files: LauncherFile[]): SyncManifestFile[] {
   const managedFiles: SyncManifestFile[] = [];
   for (const file of files) {
     const safePath = normalizeProjectFilePath(file.path);
-    if (isPackAuthorModBypassPath(rootDir, safePath)) continue;
+    if (shouldBypassPackAuthorManifestFile(rootDir, projectId, safePath)) continue;
     if (isIgnoredPlayerLocalProjectManifestPath(safePath)) continue;
     if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
       throw new Error(`Refusing to sync unmanaged or forbidden project file: ${safePath}`);
@@ -116,6 +120,7 @@ async function removeStaleManagedRequiredFiles(
   );
 
   for (const localFile of managedIndex.files) {
+    if (shouldPreserveStaleManagedFile(projectId, localFile.path)) continue;
     if (effectiveManagedIndexSyncMode(rootDir, localFile) === 'required' && !expectedFiles.has(localFile.path)) {
       await rm(assertInsideDirectory(projectDir, join(projectDir, localFile.path)), { force: true });
     }
@@ -136,9 +141,18 @@ export async function syncProject({
   onProgress
 }: SyncProjectOptions): Promise<SyncResult> {
   const project = findProject(manifest, projectId);
+  if (shouldBypassExistingProjectSync(rootDir, projectId)) {
+    return {
+      status: 'ready',
+      downloaded: 0,
+      skipped: 0,
+      totalBytes: 0,
+      downloadedBytes: 0
+    };
+  }
   let skipped = 0;
   const pendingFiles: Array<{ file: LauncherFile; path: string; syncMode: LauncherFileSyncMode; destination: string }> = [];
-  const manifestFiles = syncManifestFiles(rootDir, project.files);
+  const manifestFiles = syncManifestFiles(rootDir, projectId, project.files);
   const managedIndex = await readManagedProjectIndex(rootDir, projectId);
   const previouslyManagedPaths = new Set(managedIndex.files.map((file) => file.path));
 

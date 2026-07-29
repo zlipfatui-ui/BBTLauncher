@@ -112,8 +112,10 @@ export const fallbackManifest: LauncherManifest = {
         javaMajor: 17
       },
       artwork: {
-        cover: '',
-        gallery: []
+        cover: 'https://webbbt.zlipfatui.workers.dev/assets/images/logos/sainam-logo.png',
+        gallery: [
+          'https://webbbt.zlipfatui.workers.dev/assets/images/gallery/sainam/01.png'
+        ]
       },
       files: []
     }

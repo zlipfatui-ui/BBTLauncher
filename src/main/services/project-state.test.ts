@@ -55,6 +55,14 @@ function manifestWithFile(path: string, body: string, syncMode?: 'required' | 's
   return manifest;
 }
 
+function asSaiNam(manifest: LauncherManifest): LauncherManifest {
+  const project = manifest.projects[0];
+  project.id = 'sainam';
+  project.title = 'SaiNam';
+  project.minecraft.loaderVersion = '47.4.10';
+  return manifest;
+}
+
 async function writeManagedIndex(root: string, projectId: string, files: Array<{ path: string; syncMode: 'required' | 'seed' }>) {
   const metadataDir = join(root, 'metadata', projectId);
   await mkdir(metadataDir, { recursive: true });
@@ -329,6 +337,103 @@ describe('project state inspection', () => {
         missing: 0,
         changed: 0,
         stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('returns ready without inspecting an existing SaiNam project for its owner', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-owner-'));
+    try {
+      const configDir = join(root, 'projects', 'sainam', 'config');
+      await mkdir(configDir, { recursive: true });
+      await writeFile(join(configDir, 'sainam.toml'), 'owner changed config');
+      await writeFile(join(configDir, 'old-managed.toml'), 'owner retained config');
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'config/sainam.toml', syncMode: 'required' },
+        { path: 'config/old-managed.toml', syncMode: 'required' }
+      ]);
+
+      await expect(
+        inspectProjectState(
+          root,
+          'sainam',
+          asSaiNam(manifestWithFile('config/sainam.toml', 'official config', 'required'))
+        )
+      ).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reports the normal first install for a SaiNam owner without a project directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-owner-install-'));
+    try {
+      await writeFile(join(root, '.bbt-pack-author'), '1');
+
+      await expect(
+        inspectProjectState(root, 'sainam', asSaiNam(manifestFor('official mod')))
+      ).resolves.toEqual({
+        state: 'install',
+        missing: 1,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not report a removed managed SaiNam mod as stale for normal players', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-stale-mod-'));
+    try {
+      const mods = join(root, 'projects', 'sainam', 'mods');
+      await mkdir(mods, { recursive: true });
+      await writeFile(join(mods, 'test.jar'), 'pack');
+      await writeFile(join(mods, 'removed.jar'), 'preserved old mod');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'mods/removed.jar', syncMode: 'required' }
+      ]);
+
+      await expect(
+        inspectProjectState(root, 'sainam', asSaiNam(manifestFor('pack')))
+      ).resolves.toEqual({
+        state: 'ready',
+        missing: 0,
+        changed: 0,
+        stale: 0
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('still reports a removed managed SaiNam config as stale for normal players', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-stale-config-'));
+    try {
+      const projectRoot = join(root, 'projects', 'sainam');
+      await mkdir(join(projectRoot, 'mods'), { recursive: true });
+      await mkdir(join(projectRoot, 'config'), { recursive: true });
+      await writeFile(join(projectRoot, 'mods', 'test.jar'), 'pack');
+      await writeFile(join(projectRoot, 'config', 'removed.toml'), 'stale config');
+      await writeManagedIndex(root, 'sainam', [
+        { path: 'mods/test.jar', syncMode: 'required' },
+        { path: 'config/removed.toml', syncMode: 'required' }
+      ]);
+
+      await expect(
+        inspectProjectState(root, 'sainam', asSaiNam(manifestFor('pack')))
+      ).resolves.toMatchObject({
+        state: 'update',
+        stale: 1
       });
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -11,11 +11,15 @@ import {
 import {
   effectiveManagedIndexSyncMode,
   effectiveSyncMode,
-  isPackAuthorModBypassPath,
   isResourcePackPath,
   readManagedProjectIndex
 } from './managed-project-index.js';
 import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
+import {
+  shouldBypassExistingProjectSync,
+  shouldBypassPackAuthorManifestFile,
+  shouldPreserveStaleManagedFile
+} from './project-sync-policy.js';
 
 interface ManagedManifestFile {
   file: LauncherFile;
@@ -23,11 +27,11 @@ interface ManagedManifestFile {
   syncMode: LauncherFileSyncMode;
 }
 
-function managedManifestFiles(rootDir: string, files: LauncherFile[]): ManagedManifestFile[] {
+function managedManifestFiles(rootDir: string, projectId: string, files: LauncherFile[]): ManagedManifestFile[] {
   const managedFiles: ManagedManifestFile[] = [];
   for (const file of files) {
     const safePath = normalizeProjectFilePath(file.path);
-    if (isPackAuthorModBypassPath(rootDir, safePath)) continue;
+    if (shouldBypassPackAuthorManifestFile(rootDir, projectId, safePath)) continue;
     if (isIgnoredPlayerLocalProjectManifestPath(safePath)) continue;
     if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
       throw new Error(`Refusing to inspect unmanaged or forbidden project file: ${safePath}`);
@@ -50,7 +54,15 @@ export async function inspectProjectState(
   if (!project) throw new Error(`Project not found in launcher manifest: ${projectId}`);
 
   const projectDir = join(rootDir, 'projects', projectId);
-  const projectManifestFiles = managedManifestFiles(rootDir, project.files);
+  if (shouldBypassExistingProjectSync(rootDir, projectId)) {
+    return {
+      state: 'ready',
+      missing: 0,
+      changed: 0,
+      stale: 0
+    };
+  }
+  const projectManifestFiles = managedManifestFiles(rootDir, projectId, project.files);
 
   if (!existsSync(projectDir)) {
     return {
@@ -101,6 +113,7 @@ export async function inspectProjectState(
   );
   let stale = 0;
   for (const file of managedIndex.files) {
+    if (shouldPreserveStaleManagedFile(projectId, file.path)) continue;
     if (effectiveManagedIndexSyncMode(rootDir, file) !== 'required') continue;
     if (requiredManifestPaths.has(file.path)) continue;
     if (existsSync(assertInsideDirectory(projectDir, join(projectDir, file.path)))) {

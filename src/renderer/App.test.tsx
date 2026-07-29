@@ -71,8 +71,10 @@ const defaultManifest: LauncherManifest = {
         javaMajor: 17
       },
       artwork: {
-        cover: '',
-        gallery: []
+        cover: 'https://webbbt.zlipfatui.workers.dev/assets/images/logos/sainam-logo.png',
+        gallery: [
+          'https://webbbt.zlipfatui.workers.dev/assets/images/gallery/sainam/01.png'
+        ]
       },
       files: []
     }
@@ -224,10 +226,18 @@ describe('App', () => {
     expect(api.project.getState).toHaveBeenLastCalledWith('sainam');
     expect(screen.queryByText('NORTHVALE / SEASON 01')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'SAINAM' })).toBeInTheDocument();
-    expect(screen.getByText('สายน้ำไหลหลาก')).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: /SaiNam gallery image/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Gallery image/i })).not.toBeInTheDocument();
-    expect(projectTrigger.querySelector('.project-trigger-artwork')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('ใบไม้ที่ร่วงโรย แสงแดดอันอบอุ่น และค่ายฤดูใบไม้ร่วงที่ไม่มีใคร…กลับออกมาเหมือนเดิม')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /SaiNam gallery image 1/i })).toHaveAttribute(
+      'src',
+      'https://webbbt.zlipfatui.workers.dev/assets/images/gallery/sainam/01.png'
+    );
+    expect(screen.getAllByRole('button', { name: /Gallery image/i })).toHaveLength(1);
+    expect(projectTrigger.querySelector('.project-trigger-artwork')).toHaveAttribute(
+      'src',
+      'https://webbbt.zlipfatui.workers.dev/assets/images/logos/sainam-logo.png'
+    );
 
     await user.click(screen.getByRole('button', { name: /manage content/i }));
     expect(await screen.findByText('SAINAM LIBRARY')).toBeInTheDocument();
@@ -608,6 +618,71 @@ describe('App', () => {
 
     expect(api.project.sync).toHaveBeenCalledWith('northvale');
     expect(api.project.launch).not.toHaveBeenCalled();
+  });
+
+  it('shows REPAIR for missing or changed SaiNam files and returns to PLAY after repair', async () => {
+    const user = userEvent.setup();
+    const api = makeApi(profile);
+    let resolveSync: ((result: SyncResult) => void) | undefined;
+    api.project.getState = vi.fn(async (projectId) => (
+      projectId === 'sainam'
+        ? { state: 'update' as const, missing: 1, changed: 1, stale: 0 }
+        : { state: 'ready' as const, missing: 0, changed: 0, stale: 0 }
+    ));
+    api.project.sync = vi.fn(
+      () => new Promise<SyncResult>((resolve) => {
+        resolveSync = resolve;
+      })
+    );
+    render(<App api={api} />);
+
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+    await screen.findByText('NORTHVALE / SEASON 01');
+    const projectTrigger = within(screen.getByRole('navigation', { name: 'Main tabs' }))
+      .getByRole('button', { name: 'Project' });
+    await user.click(projectTrigger);
+    await user.click(
+      within(screen.getByRole('menu', { name: 'Projects' })).getByRole('menuitem', { name: /SAINAM/i })
+    );
+
+    await user.click(await screen.findByRole('button', { name: /^repair$/i }));
+    expect(screen.getByRole('button', { name: /^repairing$/i })).toBeDisabled();
+    expect(api.project.sync).toHaveBeenCalledWith('sainam');
+
+    act(() => {
+      resolveSync?.({
+        status: 'ready',
+        downloaded: 2,
+        skipped: 175,
+        totalBytes: 2,
+        downloadedBytes: 2
+      });
+    });
+
+    expect(await screen.findByRole('button', { name: /^play$/i })).toBeInTheDocument();
+  });
+
+  it('keeps UPDATE for stale-only SaiNam non-mod content', async () => {
+    const user = userEvent.setup();
+    const api = makeApi(profile);
+    api.project.getState = vi.fn(async (projectId) => (
+      projectId === 'sainam'
+        ? { state: 'update' as const, missing: 0, changed: 0, stale: 1 }
+        : { state: 'ready' as const, missing: 0, changed: 0, stale: 0 }
+    ));
+    render(<App api={api} />);
+
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+    await screen.findByText('NORTHVALE / SEASON 01');
+    const projectTrigger = within(screen.getByRole('navigation', { name: 'Main tabs' }))
+      .getByRole('button', { name: 'Project' });
+    await user.click(projectTrigger);
+    await user.click(
+      within(screen.getByRole('menu', { name: 'Projects' })).getByRole('menuitem', { name: /SAINAM/i })
+    );
+
+    expect(await screen.findByRole('button', { name: /^update$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^repair$/i })).not.toBeInTheDocument();
   });
 
   it('shows sync progress inside the install/update action', async () => {
