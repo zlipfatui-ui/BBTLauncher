@@ -102,7 +102,7 @@ function asSaiNam(manifest: LauncherManifest): LauncherManifest {
   const project = manifest.projects[0];
   project.id = 'sainam';
   project.title = 'SaiNam';
-  project.minecraft.loaderVersion = '47.4.10';
+  project.minecraft.loaderVersion = '47.4.20';
   return manifest;
 }
 

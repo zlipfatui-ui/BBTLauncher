@@ -38,7 +38,7 @@ describe('manifest client', () => {
     expect(validateLauncherManifest(manifest)).toEqual(manifest);
   });
 
-  it('validates Northvale and SaiNam with their own Forge versions and artwork', () => {
+  it('validates Northvale and SaiNam with Forge 47.4.20 and their artwork', () => {
     const twoProjects = structuredClone(manifest) as unknown as Record<string, unknown>;
     (twoProjects.projects as unknown[]).push({
       id: 'sainam',
@@ -47,7 +47,7 @@ describe('manifest client', () => {
       minecraft: {
         version: '1.20.1',
         loader: 'forge',
-        loaderVersion: '47.4.10',
+        loaderVersion: '47.4.20',
         javaMajor: 17
       },
       artwork: {
@@ -64,7 +64,7 @@ describe('manifest client', () => {
       minecraft: {
         version: '1.20.1',
         loader: 'forge',
-        loaderVersion: '47.4.10',
+        loaderVersion: '47.4.20',
         javaMajor: 17
       },
       artwork: {
@@ -92,13 +92,13 @@ describe('manifest client', () => {
       minecraft: {
         version: '1.20.1',
         loader: 'forge',
-        loaderVersion: '47.4.20',
+        loaderVersion: '47.4.10',
         javaMajor: 17
       },
       artwork: { cover: '', gallery: [] },
       files: []
     });
-    expect(() => validateLauncherManifest(mismatched)).toThrow(/47\.4\.10/i);
+    expect(() => validateLauncherManifest(mismatched)).toThrow(/47\.4\.20/i);
   });
 
   it('rejects unsafe file paths from the manifest', () => {

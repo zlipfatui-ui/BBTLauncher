@@ -28,7 +28,7 @@ const projectMetadata = {
     loaderVersion: '47.4.20'
   },
   [SAINAM_PROJECT_ID]: {
-    loaderVersion: '47.4.10'
+    loaderVersion: '47.4.20'
   }
 } as const;
 

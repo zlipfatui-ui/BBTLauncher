@@ -16,7 +16,7 @@ function sainamManifest(): LauncherManifest {
       minecraft: {
         version: '1.20.1',
         loader: 'forge',
-        loaderVersion: '47.4.10',
+        loaderVersion: '47.4.20',
         javaMajor: 17
       },
       artwork: { cover: '', gallery: [] },

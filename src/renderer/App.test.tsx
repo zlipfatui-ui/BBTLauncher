@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
-import type { LauncherApi } from './launcherApi';
+import { fallbackManifest, type LauncherApi } from './launcherApi';
 import type {
   AuthErrorCode,
   IpcResult,
@@ -67,7 +67,7 @@ const defaultManifest: LauncherManifest = {
       minecraft: {
         version: '1.20.1',
         loader: 'forge',
-        loaderVersion: '47.4.10',
+        loaderVersion: '47.4.20',
         javaMajor: 17
       },
       artwork: {
@@ -171,6 +171,15 @@ beforeEach(() => {
 });
 
 describe('App', () => {
+  it('exposes SaiNam Forge 47.4.20 through the fallback manifest', () => {
+    expect(fallbackManifest.projects.find((project) => project.id === 'sainam')?.minecraft).toMatchObject({
+      version: '1.20.1',
+      loader: 'forge',
+      loaderVersion: '47.4.20',
+      javaMajor: 17
+    });
+  });
+
   it('keeps the splash wordmark large without a white glow', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8');
     const splashWordmarkRule = css.match(/\.splash-wordmark\s*\{([^}]*)\}/s)?.[1] || '';

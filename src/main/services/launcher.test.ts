@@ -29,6 +29,21 @@ const manifest: LauncherManifest = {
   ]
 };
 
+const sainamManifest: LauncherManifest = {
+  ...manifest,
+  projects: [
+    {
+      ...manifest.projects[0],
+      id: 'sainam',
+      title: 'SaiNam',
+      minecraft: {
+        ...manifest.projects[0].minecraft,
+        loaderVersion: '47.4.20'
+      }
+    }
+  ]
+};
+
 const settings: LauncherSettings = {
   appDirectory: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
   width: 1280,
@@ -97,6 +112,30 @@ describe('launch service', () => {
       'INSTALLING_MINECRAFT',
       'LAUNCHING'
     ]);
+  });
+
+  it('launches SaiNam with Minecraft 1.20.1, Forge 47.4.20, and Java 17', async () => {
+    const ensureInstalled = vi.fn(async () => ({ javaPath: 'managed-java/bin/java.exe' }));
+    const launchMinecraft = vi.fn(async () => ({ pid: 4321 }));
+
+    await launchProject({
+      rootDir: settings.appDirectory,
+      projectId: 'sainam',
+      manifest: sainamManifest,
+      settings,
+      profile,
+      launcher: { ensureInstalled, launchMinecraft },
+      resolveManagedJava: async () => 'managed-java/bin/java.exe'
+    });
+
+    const runtime = {
+      projectId: 'sainam',
+      minecraftVersion: '1.20.1',
+      loaderVersion: '47.4.20',
+      javaMajor: 17
+    };
+    expect(ensureInstalled).toHaveBeenCalledWith(expect.objectContaining(runtime));
+    expect(launchMinecraft).toHaveBeenCalledWith(expect.objectContaining(runtime));
   });
 
   it('skips Minecraft and Forge installers when the cached runtime is complete', async () => {
