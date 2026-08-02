@@ -7,8 +7,8 @@ export interface DiscordActivity {
   state: string;
   timestamps: { start: number };
   assets: {
-    large_image: 'bbt';
-    large_text: 'BeforeBedtime';
+    large_image: 'bbt' | 'sainam';
+    large_text: 'BeforeBedtime' | 'SAINAM';
   };
   instance: false;
 }

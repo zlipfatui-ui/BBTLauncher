@@ -1,4 +1,4 @@
-import type { ProjectLaunchState } from '../../shared/types.js';
+import { SAINAM_PROJECT_ID, type ProjectLaunchState } from '../../shared/types.js';
 import type { DiscordActivity, DiscordRpcClient } from './discord-rpc.js';
 
 export interface DiscordPresenceService {
@@ -23,7 +23,18 @@ function launcherActivity(start: number): DiscordActivity {
   };
 }
 
-function projectActivity(start: number): DiscordActivity {
+function projectActivity(start: number, projectId?: string): DiscordActivity {
+  if (projectId === SAINAM_PROJECT_ID) {
+    return {
+      type: 0,
+      details: 'กำลังเล่น SAINAM',
+      state: 'Minecraft 1.20.1 • Forge 47.4.20',
+      timestamps: { start },
+      assets: { large_image: 'sainam', large_text: 'SAINAM' },
+      instance: false
+    };
+  }
+
   return {
     type: 0,
     details: 'กำลังเล่น Northvale',
@@ -46,7 +57,7 @@ export function createDiscordPresenceService(options: DiscordPresenceOptions): D
     updateLaunchState(state: ProjectLaunchState): void {
       if (state.status === 'running' && mode === 'launcher') {
         mode = 'project';
-        options.rpc.setActivity(projectActivity(Math.floor(now() / 1_000)));
+        options.rpc.setActivity(projectActivity(Math.floor(now() / 1_000), state.projectId));
       }
       if (state.status === 'idle' && mode === 'project') {
         mode = 'launcher';
