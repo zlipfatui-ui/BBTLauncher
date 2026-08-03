@@ -108,6 +108,19 @@
 - [ ] Run `npm test -- --maxWorkers=1`, `npm run build`, `npm run release:win`, and `git diff --check`.
 - [ ] Verify local outputs contain exactly Setup, Setup blockmap, `latest.yml`, and Portable for `0.3.3`; verify `latest.yml` names version `0.3.3` and the `0.3.3` Setup path.
 - [ ] Commit with `chore: release launcher v0.3.3`.
+- [ ] Stop for Task 4 review and the final whole-branch review; do not push, tag, or publish from this task.
+
+---
+
+### Task 5: Publish and Verify Auto Update
+
+**Files:** None.
+
+**Interfaces:**
+- Consumes: the reviewed Task 4 commit and its already verified local v0.3.3 artifacts.
+- Produces: GitHub Latest release `v0.3.3` and production electron-updater discovery.
+
+- [ ] Require Task 4 review and the final whole-branch review to have no open load-bearing findings.
 - [ ] Push `main` without force, then run the existing GitHub publication workflow without rebuilding unreviewed code.
 - [ ] Verify GitHub Latest is `v0.3.3`, all four assets exist, local/remote sizes and SHA-256 digests match, and `origin/main`, the v0.3.3 tag, and release target resolve to the same commit.
 - [ ] Verify an installed v0.3.2 Launcher detects v0.3.3 through Auto Update.
