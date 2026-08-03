@@ -6,11 +6,18 @@ import {
   isPackAuthorModBypassPath,
   isPackAuthorMode
 } from './managed-project-index.js';
-import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
+import { assertInsideDirectory } from './path-safety.js';
 
-const RETIRED_SAINAM_FANCYMENU_MOD_PATH = 'mods/fancymenu_forge_3.9.3_MC_1.20.1.jar';
-const RETIRED_SAINAM_EPIC_FIGHT_MOD_PATH =
-  'mods/epic-fight-20.14.17-mc1.20.1-forge.jar';
+export const SAINAM_RETIRED_MOD_MIGRATION_PATHS = [
+  'mods/fancymenu_forge_3.9.3_MC_1.20.1.jar',
+  'mods/epic-fight-20.14.17-mc1.20.1-forge.jar',
+  'mods/aaa_particles_world-forge-1.20.1-1.0.3.jar',
+  'mods/aaa_particles-forge-1.20.1-2.2.0.jar',
+  'mods/letsdo-brewery-forge-1.1.9.jar',
+  'mods/simplyswords-forge-1.56.0-1.20.1.jar',
+  'mods/waystones-forge-1.20.1-14.1.18.jar',
+  'mods/waystones-forge-1.20.1-14.1.20.jar'
+] as const;
 
 export function shouldBypassExistingProjectSync(rootDir: string, projectId: string): boolean {
   if (projectId !== SAINAM_PROJECT_ID || !isPackAuthorMode(rootDir)) return false;
@@ -30,19 +37,15 @@ export function shouldBypassExistingProjectSync(rootDir: string, projectId: stri
   ));
 }
 
-export function shouldPreserveStaleManagedFile(projectId: string, filePath: string): boolean {
-  if (projectId !== SAINAM_PROJECT_ID || !isModPath(filePath)) return false;
-  const normalizedPath = normalizeProjectFilePath(filePath);
-  return normalizedPath !== RETIRED_SAINAM_FANCYMENU_MOD_PATH
-    && normalizedPath !== RETIRED_SAINAM_EPIC_FIGHT_MOD_PATH;
-}
-
 export function shouldTreatRetiredManagedFileAsRepair(
   projectId: string,
   filePath: string
 ): boolean {
-  return projectId === SAINAM_PROJECT_ID
-    && normalizeProjectFilePath(filePath) === RETIRED_SAINAM_EPIC_FIGHT_MOD_PATH;
+  return projectId === SAINAM_PROJECT_ID && isModPath(filePath);
+}
+
+export function retiredSaiNamMigrationPaths(projectId: string): readonly string[] {
+  return projectId === SAINAM_PROJECT_ID ? SAINAM_RETIRED_MOD_MIGRATION_PATHS : [];
 }
 
 export function shouldBypassPackAuthorManifestFile(

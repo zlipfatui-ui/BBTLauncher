@@ -16,9 +16,9 @@ import {
 } from './managed-project-index.js';
 import { assertInsideDirectory, normalizeProjectFilePath } from './path-safety.js';
 import {
+  retiredSaiNamMigrationPaths,
   shouldBypassExistingProjectSync,
   shouldBypassPackAuthorManifestFile,
-  shouldPreserveStaleManagedFile,
   shouldTreatRetiredManagedFileAsRepair
 } from './project-sync-policy.js';
 
@@ -112,19 +112,29 @@ export async function inspectProjectState(
   const requiredManifestPaths = new Set(
     projectManifestFiles.filter((entry) => entry.syncMode === 'required').map((entry) => entry.path)
   );
+  const countedStalePaths = new Set<string>();
   let stale = 0;
   for (const file of managedIndex.files) {
+    const indexedPath = normalizeProjectFilePath(file.path);
     if (effectiveManagedIndexSyncMode(rootDir, file) !== 'required') continue;
-    if (requiredManifestPaths.has(file.path)) continue;
-    const destination = assertInsideDirectory(projectDir, join(projectDir, file.path));
-    if (shouldTreatRetiredManagedFileAsRepair(projectId, file.path) && existsSync(destination)) {
+    if (requiredManifestPaths.has(indexedPath)) continue;
+    const destination = assertInsideDirectory(projectDir, join(projectDir, indexedPath));
+    if (shouldTreatRetiredManagedFileAsRepair(projectId, indexedPath) && existsSync(destination)) {
       changed += 1;
+      countedStalePaths.add(indexedPath);
       continue;
     }
-    if (shouldPreserveStaleManagedFile(projectId, file.path)) continue;
     if (existsSync(destination)) {
       stale += 1;
+      countedStalePaths.add(indexedPath);
     }
+  }
+
+  for (const retiredPath of retiredSaiNamMigrationPaths(projectId)) {
+    const safePath = normalizeProjectFilePath(retiredPath);
+    if (requiredManifestPaths.has(safePath) || countedStalePaths.has(safePath)) continue;
+    const destination = assertInsideDirectory(projectDir, join(projectDir, safePath));
+    if (existsSync(destination)) changed += 1;
   }
 
   return {

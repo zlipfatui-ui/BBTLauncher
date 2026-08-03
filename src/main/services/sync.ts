@@ -19,9 +19,9 @@ import {
   writeManagedProjectIndex
 } from './managed-project-index.js';
 import {
+  retiredSaiNamMigrationPaths,
   shouldBypassExistingProjectSync,
-  shouldBypassPackAuthorManifestFile,
-  shouldPreserveStaleManagedFile
+  shouldBypassPackAuthorManifestFile
 } from './project-sync-policy.js';
 
 export interface SyncProjectOptions {
@@ -120,10 +120,25 @@ async function removeStaleManagedRequiredFiles(
   );
 
   for (const localFile of managedIndex.files) {
-    if (shouldPreserveStaleManagedFile(projectId, localFile.path)) continue;
     if (effectiveManagedIndexSyncMode(rootDir, localFile) === 'required' && !expectedFiles.has(localFile.path)) {
       await rm(assertInsideDirectory(projectDir, join(projectDir, localFile.path)), { force: true });
     }
+  }
+}
+
+async function removeRetiredSaiNamMigrationFiles(
+  rootDir: string,
+  projectId: string,
+  manifestFiles: SyncManifestFile[]
+): Promise<void> {
+  const projectDir = join(rootDir, 'projects', projectId);
+  if (!existsSync(projectDir)) return;
+  const expectedFiles = new Set(manifestFiles.map((file) => file.path));
+
+  for (const retiredPath of retiredSaiNamMigrationPaths(projectId)) {
+    const safePath = normalizeProjectFilePath(retiredPath);
+    if (expectedFiles.has(safePath)) continue;
+    await rm(assertInsideDirectory(projectDir, join(projectDir, safePath)), { force: true });
   }
 }
 
@@ -208,6 +223,7 @@ export async function syncProject({
   }
 
   await removeStaleManagedRequiredFiles(rootDir, projectId, manifestFiles, managedIndex);
+  await removeRetiredSaiNamMigrationFiles(rootDir, projectId, manifestFiles);
 
   const indexRecords: ManagedProjectFileRecord[] = [];
   for (const { file, path: safePath, syncMode } of manifestFiles) {
