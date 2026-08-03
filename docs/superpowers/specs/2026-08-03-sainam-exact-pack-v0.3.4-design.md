@@ -12,7 +12,7 @@ The canonical source is the existing Owner project at:
 
 Only regular `.jar` files directly inside `mods/` are canonical mods. Generated Connector output under `mods/.connector/`, nested directories, `.input` files, disabled files, temporary files, and symbolic links are excluded.
 
-The canonical FancyMenu source is the same Owner project. Import `config/fancymenu/` and `fancymenu_data/`, subject to the filtering and sync policies below.
+The canonical FancyMenu configuration source is the same Owner project. Import `config/fancymenu/` subject to the filtering policy below. Keep the four existing staged `fancymenu_data/` defaults instead of importing Owner runtime state.
 
 ## Exact Managed Mod Set
 
@@ -57,7 +57,7 @@ The importer copies the functional FancyMenu tree from the Owner project while e
 
 Files under `config/fancymenu/` are required. Missing or changed files are repaired, and previously managed FancyMenu config files removed from the new canonical tree are cleaned up.
 
-All files under `fancymenu_data/` use `syncMode: seed`. They are installed when absent but are not hash-repaired after FancyMenu writes player or world state. This prevents `last_world.fmdata`, `buddy_save.json`, favorites, and similar runtime data from causing REPAIR every time the game runs.
+All four existing staged files under `fancymenu_data/` use `syncMode: seed`. They are installed when absent but are not hash-repaired after FancyMenu writes player or world state. The importer must not copy the Owner versions because `last_world.fmdata` contains the Owner machine's absolute local world path and the other files contain live player state. This prevents private runtime state from being published and prevents `last_world.fmdata`, `buddy_save.json`, favorites, and similar runtime data from causing REPAIR every time the game runs.
 
 ## Manifest and Storage Rollout
 
@@ -94,7 +94,7 @@ BBTWeb tests must prove:
 
 - The importer copies only direct Owner JARs.
 - Connector output, nested mod directories, backups, docs, temporary files, and symbolic links are excluded or rejected as appropriate.
-- Functional FancyMenu files are copied.
+- Functional FancyMenu configuration files are copied while the four canonical staged runtime defaults are preserved.
 - Every `fancymenu_data/` manifest entry is `seed`.
 - The release manifest contains the 173 direct Owner mods, the new BBTSkin hash, the three additions, and none of the six retired mods.
 - NORTHVALE manifest counts, hashes, Forge metadata, and artwork remain unchanged.
