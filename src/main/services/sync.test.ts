@@ -556,7 +556,7 @@ describe('project sync', () => {
     }
   });
 
-  it('preserves a removed managed SaiNam mod for normal players', async () => {
+  it('removes a retired managed SaiNam mod for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-sainam-stale-mod-'));
     const projectRoot = join(root, 'projects', 'sainam');
 
@@ -580,9 +580,7 @@ describe('project sync', () => {
       });
 
       expect(result.downloaded).toBe(0);
-      await expect(readFile(join(projectRoot, 'mods', 'removed.jar'), 'utf8')).resolves.toBe(
-        'preserved old mod'
-      );
+      await expect(readFile(join(projectRoot, 'mods', 'removed.jar'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -633,8 +631,7 @@ describe('project sync', () => {
       await writeFile(join(projectRoot, 'mods', 'player-added.jar'), 'keep me');
       await writeManagedIndex(root, 'sainam', [
         { path: 'mods/test.jar', syncMode: 'required' },
-        { path: 'mods\\epic-fight-20.14.17-mc1.20.1-forge.jar', syncMode: 'required' },
-        { path: 'mods/player-added.jar', syncMode: 'required' }
+        { path: 'mods\\epic-fight-20.14.17-mc1.20.1-forge.jar', syncMode: 'required' }
       ]);
 
       await syncProject({

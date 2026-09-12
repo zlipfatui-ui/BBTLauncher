@@ -397,6 +397,45 @@ describe('App', () => {
     expect(container.querySelector('.route-transition')).not.toBeInTheDocument();
   });
 
+  it('shows the saved project while the remote manifest is still loading', async () => {
+    const api = makeApi(profile);
+    api.manifest.refresh = vi.fn(() => new Promise<LauncherManifest>(() => {}));
+    api.settings.load = vi.fn(async () => ({ ...defaultSettings, selectedProject: 'sainam' as const }));
+    render(<App api={api} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /click to start/i }));
+    expect(await screen.findByText('SAINAM / SEASON TEST')).toBeInTheDocument();
+    expect(screen.queryByText('NORTHVALE / SEASON 01')).not.toBeInTheDocument();
+  });
+
+  it('never mounts the default project while saved settings are pending', async () => {
+    const api = makeApi(profile);
+    let finishSettings!: (settings: LauncherSettings) => void;
+    api.settings.load = vi.fn(() => new Promise<LauncherSettings>((resolve) => { finishSettings = resolve; }));
+    const { container } = render(<App api={api} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /click to start/i }));
+    await screen.findByRole('status');
+    expect(container.querySelector('.project-panel')).not.toBeInTheDocument();
+    expect(screen.queryByText('NORTHVALE / SEASON 01')).not.toBeInTheDocument();
+    await act(async () => finishSettings({ ...defaultSettings, selectedProject: 'sainam' }));
+    expect(await screen.findByText('SAINAM / SEASON TEST')).toBeInTheDocument();
+  });
+
+  it('does not add a transition delay after a slow session restore', async () => {
+    vi.useFakeTimers();
+    try {
+      const api = makeApi(profile);
+      let finishRestore!: (state: Awaited<ReturnType<LauncherApi['auth']['getState']>>) => void;
+      api.auth.getState = vi.fn(() => new Promise<Awaited<ReturnType<LauncherApi['auth']['getState']>>>((resolve) => { finishRestore = resolve; }));
+      const { container } = render(<App api={api} />);
+      fireEvent.click(screen.getByRole('button', { name: /click to start/i }));
+      await act(async () => { vi.advanceTimersByTime(1000); });
+      await act(async () => finishRestore({ ok: true, value: { status: 'signed-in', profile } }));
+      expect(container.querySelector('.main')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('skips Microsoft auth after Click to start when a session was restored', async () => {
     const user = userEvent.setup();
     render(<App api={makeApi(profile)} />);

@@ -24,7 +24,8 @@ function sainamManifest(): LauncherManifest {
         path: 'mods/managed.jar',
         url: 'https://example.invalid/managed.jar',
         sha256: 'a'.repeat(64),
-        size: 7
+        size: 7,
+        required: true
       }]
     }]
   };

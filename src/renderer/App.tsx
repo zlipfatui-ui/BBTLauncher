@@ -445,41 +445,21 @@ function MainShell({
   api,
   profile,
   onLogout,
-  isEntering
+  isEntering,
+  manifest,
+  settings,
+  setSettings
 }: {
   api: LauncherApi;
+  manifest: LauncherManifest;
+  settings: LauncherSettings;
+  setSettings: React.Dispatch<React.SetStateAction<LauncherSettings>>;
   profile: SafeMinecraftProfile | null;
   onLogout: () => void;
   isEntering: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('project');
   const [updateState, setUpdateState] = useState<LauncherUpdateState>({ status: 'idle' });
-  const [manifest, setManifest] = useState<LauncherManifest>(fallbackManifest);
-  const [settings, setSettings] = useState<LauncherSettings>(defaultLauncherSettings);
-
-  useEffect(() => {
-    let active = true;
-    void Promise.all([
-      api.manifest.refresh().catch(() => fallbackManifest),
-      api.settings.load().catch(() => defaultLauncherSettings)
-    ]).then(([nextManifest, nextSettings]) => {
-      if (!active) return;
-      const selectedProject = resolveSelectedProject(nextManifest, nextSettings.selectedProject);
-      const normalizedSettings = {
-        ...nextSettings,
-        selectedProject: selectedProject.id
-      };
-      setManifest(nextManifest);
-      setSettings(normalizedSettings);
-      if (selectedProject.id !== nextSettings.selectedProject) {
-        void api.settings.save({ selectedProject: selectedProject.id }).catch(() => undefined);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [api]);
-
   useEffect(() => {
     let active = true;
     void api.updater.getState().then((state) => {
@@ -548,6 +528,34 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
   const transitionTimers = useRef<number[]>([]);
   const memoApi = useMemo(() => api, [api]);
   const restoreSession = useMemo(() => memoApi.auth.getState(), [memoApi]);
+  const [manifest, setManifest] = useState<LauncherManifest>(fallbackManifest);
+  const [settings, setSettings] = useState<LauncherSettings>(defaultLauncherSettings);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [manifestReady, setManifestReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    // Read local selection immediately; the network must not hold it up.
+    void memoApi.settings.load().catch(() => defaultLauncherSettings).then((saved) => {
+      if (!active) return;
+      setSettings(saved);
+      setSettingsReady(true);
+    });
+    void memoApi.manifest.refresh().catch(() => fallbackManifest).then((next) => {
+      if (!active) return;
+      setManifest(next);
+      setManifestReady(true);
+    });
+    return () => { active = false; };
+  }, [memoApi]);
+
+  useEffect(() => {
+    if (!settingsReady || !manifestReady) return;
+    const selectedProject = resolveSelectedProject(manifest, settings.selectedProject);
+    if (selectedProject.id === settings.selectedProject) return;
+    setSettings((current) => ({ ...current, selectedProject: selectedProject.id }));
+    void memoApi.settings.save({ selectedProject: selectedProject.id }).catch(() => undefined);
+  }, [memoApi, manifest, manifestReady, settingsReady, settings.selectedProject]);
 
   function clearTransitionTimers() {
     transitionTimers.current.forEach((timer) => window.clearTimeout(timer));
@@ -572,20 +580,19 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
     clearTransitionTimers();
     setTransitionPhase('splash-exit');
 
-    void restoreSession.then((result) => {
+    const exitAnimation = new Promise<void>((resolve) => scheduleTransition(resolve, routeSwitchDelayMs));
+    void Promise.all([restoreSession, exitAnimation]).then(([result]) => {
       const nextScreen: Screen = result.ok && result.value.profile ? 'main' : 'auth';
       if (result.ok && result.value.profile) {
         setProfile(result.value.profile);
       }
 
-      scheduleTransition(() => {
-        setScreen(nextScreen);
-        setTransitionPhase(nextScreen === 'main' ? 'main-enter' : 'auth-enter');
-      }, routeSwitchDelayMs);
+      setScreen(nextScreen);
+      setTransitionPhase(nextScreen === 'main' ? 'main-enter' : 'auth-enter');
 
       scheduleTransition(() => {
         setTransitionPhase('idle');
-      }, routeTransitionDurationMs);
+      }, routeTransitionDurationMs - routeSwitchDelayMs);
     });
   }
 
@@ -615,8 +622,13 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
       />
     );
   } else {
-    content = (
+    content = !settingsReady ? (
+      <section className="screen main"><div role="status">Loading…</div></section>
+    ) : (
       <MainShell
+        manifest={manifest}
+        settings={settings}
+        setSettings={setSettings}
         api={memoApi}
         profile={profile}
         isEntering={transitionPhase === 'main-enter'}

@@ -433,7 +433,7 @@ describe('project state inspection', () => {
     }
   });
 
-  it('does not report a removed managed SaiNam mod as stale for normal players', async () => {
+  it('reports a removed managed SaiNam mod as repair for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-stale-mod-'));
     try {
       const mods = join(root, 'projects', 'sainam', 'mods');
@@ -448,9 +448,9 @@ describe('project state inspection', () => {
       await expect(
         inspectProjectState(root, 'sainam', asSaiNam(manifestFor('pack')))
       ).resolves.toEqual({
-        state: 'ready',
+        state: 'update',
         missing: 0,
-        changed: 0,
+        changed: 1,
         stale: 0
       });
     } finally {
@@ -458,7 +458,7 @@ describe('project state inspection', () => {
     }
   });
 
-  it('reports the normalized legacy FancyMenu mod as stale for normal players', async () => {
+  it('reports the normalized legacy FancyMenu mod as repair for normal players', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-state-sainam-stale-fancymenu-'));
     try {
       const mods = join(root, 'projects', 'sainam', 'mods');
@@ -475,8 +475,8 @@ describe('project state inspection', () => {
       ).resolves.toEqual({
         state: 'update',
         missing: 0,
-        changed: 0,
-        stale: 1
+        changed: 1,
+        stale: 0
       });
     } finally {
       await rm(root, { recursive: true, force: true });
