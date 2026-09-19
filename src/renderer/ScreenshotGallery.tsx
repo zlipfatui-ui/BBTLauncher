@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ProjectScreenshotEntry } from "../shared/types";
 import type { LauncherApi } from "./launcherApi";
 import { Icon } from "./Visuals";
 import { Overlay } from "./motion";
 import { operationError } from "./operation-error";
+
+const emptyEntries: ProjectScreenshotEntry[] = [];
 
 export function useScreenshots(
   api: LauncherApi,
@@ -12,25 +14,35 @@ export function useScreenshots(
   active: boolean,
   open: boolean,
 ) {
-  const [entries, setEntries] = useState<ProjectScreenshotEntry[]>([]),
-    [error, setError] = useState(""),
-    [loading, setLoading] = useState(false);
+  const source = useMemo(() => ({ api, projectId, path }), [api, projectId, path]);
+  const currentSource = useRef(source);
+  currentSource.current = source;
+  const [listing, setListing] = useState({
+    source,
+    entries: emptyEntries,
+    error: "",
+    loading: false,
+  });
   const revision = useRef(0);
   const refresh = useCallback(async () => {
+    if (currentSource.current !== source) return;
     const id = ++revision.current;
-    setLoading(true);
+    setListing((previous) => ({
+      source,
+      entries: previous.source === source ? previous.entries : emptyEntries,
+      error: "",
+      loading: true,
+    }));
     try {
       const result = await api.project.screenshots.list(projectId);
-      if (revision.current !== id) return;
+      if (revision.current !== id || currentSource.current !== source) return;
       if (!result.ok) throw new Error(result.error.message);
-      setEntries(result.value.entries);
-      setError("");
+      setListing({ source, entries: result.value.entries, error: "", loading: false });
     } catch (err) {
-      if (revision.current === id) setError(operationError(err));
-    } finally {
-      if (revision.current === id) setLoading(false);
+      if (revision.current === id && currentSource.current === source)
+        setListing({ source, entries: emptyEntries, error: operationError(err), loading: false });
     }
-  }, [api, projectId, path]);
+  }, [api, projectId, source]);
   useEffect(() => {
     if (!active) return;
     void refresh();
@@ -41,7 +53,13 @@ export function useScreenshots(
       window.removeEventListener("focus", focus);
     };
   }, [active, open, refresh]);
-  return { entries, error, loading, refresh };
+  // Hide the previous directory synchronously, before new effects or IPC complete.
+  return {
+    entries: listing.source === source ? listing.entries : emptyEntries,
+    error: listing.source === source ? listing.error : "",
+    loading: listing.source === source ? listing.loading : active,
+    refresh,
+  };
 }
 
 export function ScreenshotThumbnail({
@@ -53,10 +71,14 @@ export function ScreenshotThumbnail({
   projectId: string;
   entry?: ProjectScreenshotEntry;
 }) {
-  const container = useRef<HTMLSpanElement>(null),
-    [url, setUrl] = useState("");
+  const container = useRef<HTMLSpanElement>(null);
+  const identity = useMemo(
+    () => ({ api, projectId, relativePath: entry?.relativePath, modifiedAt: entry?.modifiedAt }),
+    [api, projectId, entry?.relativePath, entry?.modifiedAt],
+  );
+  const [image, setImage] = useState({ identity, url: "" });
+  const url = image.identity === identity ? image.url : "";
   useEffect(() => {
-    setUrl("");
     if (!entry) return;
     let live = true,
       requested = false;
@@ -66,7 +88,7 @@ export function ScreenshotThumbnail({
       void api.project.screenshots
         .read(projectId, entry.relativePath, true)
         .then((result) => {
-          if (live && result.ok) setUrl(result.value.dataUrl);
+          if (live && result.ok) setImage({ identity, url: result.value.dataUrl });
         })
         .catch(() => undefined);
     };
@@ -85,7 +107,7 @@ export function ScreenshotThumbnail({
       live = false;
       observer?.disconnect();
     };
-  }, [api, projectId, entry?.relativePath, entry?.modifiedAt]);
+  }, [api, projectId, identity]);
   return (
     <span className="screenshot-thumbnail" ref={container}>
       {url ? <img src={url} alt="" draggable={false} /> : <Icon name="photo" />}
@@ -93,26 +115,34 @@ export function ScreenshotThumbnail({
   );
 }
 
-export function ScreenshotGallery({
-  api,
-  projectId,
-  path,
-  open,
-  onClose,
-  library,
-}: {
+type ScreenshotGalleryProps = {
   api: LauncherApi;
   projectId: string;
   path: string;
   open: boolean;
   onClose(): void;
   library: ReturnType<typeof useScreenshots>;
-}) {
+};
+
+export function ScreenshotGallery(props: ScreenshotGalleryProps) {
+  // A new root must never inherit a filename, decoded image, or pending read.
+  return <ScreenshotViewer key={JSON.stringify([props.projectId, props.path])} {...props} />;
+}
+
+function ScreenshotViewer({
+  api,
+  projectId,
+  path,
+  open,
+  onClose,
+  library,
+}: ScreenshotGalleryProps) {
   const [selected, setSelected] = useState<string | null>(null),
     [image, setImage] = useState(""),
     [previousImage, setPreviousImage] = useState(""),
     [loading, setLoading] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [readRevision, setReadRevision] = useState(0);
   const displayedImage = useRef("");
   const entries = library.entries;
   const entry =
@@ -150,7 +180,7 @@ export function ScreenshotGallery({
     return () => {
       active = false;
     };
-  }, [api, open, projectId, path, entry?.relativePath, entry?.modifiedAt]);
+  }, [api, open, projectId, path, entry?.relativePath, entry?.modifiedAt, readRevision]);
   useEffect(()=>{if(!previousImage)return;const timer=setTimeout(()=>setPreviousImage(""),300);return()=>clearTimeout(timer);},[previousImage,image]);
   const previous = () => {
     if (index > 0) setSelected(entries[index - 1].relativePath);
@@ -189,6 +219,10 @@ export function ScreenshotGallery({
       setError(operationError(err));
       void library.refresh();
     }
+  }
+  async function retry() {
+    await library.refresh();
+    setReadRevision((value) => value + 1);
   }
   return (
     <Overlay
@@ -289,7 +323,7 @@ export function ScreenshotGallery({
       {(error || library.error) && (
         <button
           className="screenshot-action gallery-retry"
-          onClick={() => void library.refresh()}
+          onClick={() => void retry()}
         >
           อ่านโฟลเดอร์อีกครั้ง
         </button>
