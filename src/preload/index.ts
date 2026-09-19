@@ -12,8 +12,12 @@ contextBridge.exposeInMainWorld('bbtLauncher', {
   auth: {
     getState: () => ipcRenderer.invoke('auth:getState'),
     loginMicrosoft: () => ipcRenderer.invoke('auth:loginMicrosoft'),
+    cancelLogin: () => ipcRenderer.invoke('auth:cancelLogin'),
     logout: () => ipcRenderer.invoke('auth:logout'),
     getProfile: () => ipcRenderer.invoke('auth:getProfile')
+  },
+  system: {
+    getMemoryInfo: () => ipcRenderer.invoke('system:getMemoryInfo')
   },
   settings: {
     load: () => ipcRenderer.invoke('settings:load'),
@@ -29,6 +33,14 @@ contextBridge.exposeInMainWorld('bbtLauncher', {
     sync: (projectId: string) => ipcRenderer.invoke('project:sync', projectId),
     launch: (projectId: string) => ipcRenderer.invoke('project:launch', projectId),
     stop: (projectId: string) => ipcRenderer.invoke('project:stop', projectId),
+    screenshots: {
+      list: (projectId: string) => ipcRenderer.invoke('project:screenshots:list', projectId),
+      read: (projectId: string, relativePath: string, thumbnail = false) =>
+        ipcRenderer.invoke('project:screenshots:read', projectId, relativePath, thumbnail),
+      openFile: (projectId: string, relativePath: string) => ipcRenderer.invoke('project:screenshots:openFile', projectId, relativePath),
+      revealFile: (projectId: string, relativePath: string) => ipcRenderer.invoke('project:screenshots:revealFile', projectId, relativePath),
+      openFolder: (projectId: string) => ipcRenderer.invoke('project:screenshots:openFolder', projectId)
+    },
     content: {
       list: (projectId: string, kind: ProjectContentKind) =>
         ipcRenderer.invoke('project:content:list', projectId, kind),

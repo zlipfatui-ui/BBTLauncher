@@ -75,6 +75,7 @@ describe('Microsoft loopback callback', () => {
 
     expect(new URL(loopback.redirectUri).pathname).toBe('/');
     loopback.close();
+    await expect(loopback.waitForCode).rejects.toMatchObject({ code: 'AUTH_CANCELLED' });
   });
 
   it('rejects a callback whose state does not match', async () => {
@@ -98,6 +99,90 @@ describe('Microsoft loopback callback', () => {
 });
 
 describe('MinecraftAuthService', () => {
+  it('closes an active callback listener on cancel, rejects promptly and ignores a late callback', async () => {
+    let resolveCode!: (value: { code: string; state: string }) => void;
+    let closed = false;
+    let tokens = 0;
+    const service = new MinecraftAuthService({
+      clientId: 'test-client', openExternal: async () => undefined,
+      cryptoProvider: { createNewGuid: () => 'state', generatePkceCodes: async () => ({ verifier: 'v', challenge: 'c' }) },
+      loopbackFactory: async () => ({ redirectUri: 'http://localhost:1234/',
+        waitForCode: new Promise((resolve) => { resolveCode = resolve; }), close: () => { closed = true; } }),
+      msalClient: {
+        getTokenCache: () => ({ getAllAccounts: async () => [], removeAccount: async () => undefined }),
+        getAuthCodeUrl: async () => 'https://login.example.test', acquireTokenSilent: vi.fn(),
+        acquireTokenByCode: async () => { tokens++; return { accessToken: 'late' }; }
+      },
+      exchangeSession: async () => ({ profile: mapMinecraftProfileToSafeProfile({ id: 'id', name: 'Late' }), accessToken: 'mc', expiresAt: Date.now() + 3600000 })
+    });
+    const login = service.loginMicrosoft().catch((error) => error);
+    await vi.waitFor(() => expect(resolveCode).toBeTypeOf('function'));
+    await service.cancelLogin();
+    expect(closed).toBe(true);
+    expect(await login).toMatchObject({ code: 'AUTH_CANCELLED' });
+    resolveCode({ code: 'late', state: 'state' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(tokens).toBe(0);
+    expect(await service.getState()).toEqual({ status: 'signed-out', profile: null });
+  });
+
+  it('invalidates a late Minecraft exchange on logout and a fresh login stays signed in', async () => {
+    let resolveOld!: (value: any) => void;
+    let exchanges = 0;
+    const session = (name: string) => ({ profile: mapMinecraftProfileToSafeProfile({ id: name, name }), accessToken: name, expiresAt: Date.now() + 3600000 });
+    const service = new MinecraftAuthService({
+      clientId: 'test-client', openExternal: async () => undefined,
+      cryptoProvider: { createNewGuid: () => 'state', generatePkceCodes: async () => ({ verifier: 'v', challenge: 'c' }) },
+      loopbackFactory: async () => ({ redirectUri: 'http://localhost:1234/', waitForCode: Promise.resolve({ code: 'code', state: 'state' }), close: () => undefined }),
+      msalClient: {
+        getTokenCache: () => ({ getAllAccounts: async () => [{ homeAccountId: 'old' }], removeAccount: async () => undefined }),
+        getAuthCodeUrl: async () => 'https://login.example.test', acquireTokenSilent: async () => ({ accessToken: 'old' }),
+        acquireTokenByCode: async () => ({ accessToken: 'token' })
+      },
+      exchangeSession: async () => ++exchanges === 1 ? new Promise((resolve) => { resolveOld = resolve; }) : session('Fresh')
+    });
+    const old = service.loginMicrosoft().catch((error) => error);
+    await vi.waitFor(() => expect(resolveOld).toBeTypeOf('function'));
+    await service.logout();
+    expect(await old).toMatchObject({ code: 'AUTH_CANCELLED' });
+    await expect(service.ensureSession()).rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
+    expect(await service.loginMicrosoft()).toMatchObject({ name: 'Fresh' });
+    resolveOld(session('Old'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await service.getState()).toMatchObject({ status: 'signed-in', profile: { name: 'Fresh' } });
+  });
+
+  it('blocks late MSAL cache persistence after cancellation', async () => {
+    let resolveToken!: () => void;
+    let persisted = '';
+    const service = new MinecraftAuthService({
+      clientId: 'test-client', openExternal: async () => undefined,
+      tokenCachePlugin: { beforeCacheAccess: async () => undefined,
+        afterCacheAccess: async () => { persisted = 'late credentials'; } },
+      clearTokenCache: async () => { persisted = ''; },
+      msalClientFactory: async (plugin) => ({
+        getTokenCache: () => ({ getAllAccounts: async () => [], removeAccount: async () => undefined }),
+        getAuthCodeUrl: async () => 'https://login.example.test', acquireTokenSilent: vi.fn(),
+        acquireTokenByCode: async () => {
+          await new Promise<void>((resolve) => { resolveToken = resolve; });
+          await plugin?.afterCacheAccess({ cacheHasChanged: true, tokenCache: { serialize: () => 'cache' } });
+          return { accessToken: 'token' };
+        }
+      }),
+      cryptoProvider: { createNewGuid: () => 'state', generatePkceCodes: async () => ({ verifier: 'v', challenge: 'c' }) },
+      loopbackFactory: async () => ({ redirectUri: 'http://localhost:1234/', waitForCode: Promise.resolve({ code: 'code', state: 'state' }), close: () => undefined }),
+      exchangeSession: vi.fn()
+    });
+    const login = service.loginMicrosoft().catch((error) => error);
+    await vi.waitFor(() => expect(resolveToken).toBeTypeOf('function'));
+    await service.cancelLogin();
+    resolveToken();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await login).toMatchObject({ code: 'AUTH_CANCELLED' });
+    expect(persisted).toBe('');
+    expect(await service.getState()).toEqual({ status: 'signed-out', profile: null });
+  });
+
   it('uses S256 PKCE and the verified loopback code for interactive login', async () => {
     const getAuthCodeUrl = vi.fn(async () => 'https://login.example.test/authorize');
     const acquireTokenByCode = vi.fn(async () => ({ accessToken: 'microsoft-token' }));

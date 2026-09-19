@@ -91,6 +91,28 @@ export interface LauncherSettings {
   fullscreen: boolean;
   memoryMb: number;
   selectedProject: ProjectId;
+  starMotion: boolean;
+}
+
+export interface SystemMemoryInfo {
+  totalMb: number;
+  maxMb: number;
+}
+
+export interface ProjectScreenshotEntry {
+  relativePath: string;
+  name: string;
+  size: number;
+  modifiedAt: string;
+}
+
+export interface ProjectScreenshotListResult {
+  entries: ProjectScreenshotEntry[];
+  directoryExists: boolean;
+}
+
+export interface ProjectScreenshotReadResult {
+  dataUrl: string;
 }
 
 export interface SafeMinecraftProfile {
@@ -109,7 +131,11 @@ export type AuthErrorCode =
   | 'XSTS_RESTRICTED'
   | 'MINECRAFT_NOT_OWNED'
   | 'MINECRAFT_APP_NOT_APPROVED'
-  | 'AUTH_CONFIG_MISSING';
+  | 'AUTH_CONFIG_MISSING'
+  | 'SYSTEM_MEMORY_UNAVAILABLE'
+  | 'SCREENSHOT_UNAVAILABLE'
+  | 'PROJECT_LOCKED'
+  | 'DESKTOP_UNAVAILABLE';
 
 export interface AuthState {
   status: 'signed-out' | 'restoring' | 'signed-in';

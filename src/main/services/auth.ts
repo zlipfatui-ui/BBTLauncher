@@ -1,4 +1,6 @@
 import { createServer } from 'node:http';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { AuthOperations, type AuthOperation } from './auth-operations.js';
 import type { AddressInfo } from 'node:net';
 import { URL } from 'node:url';
 import type {
@@ -60,12 +62,18 @@ interface LoopbackServer {
   close(): void;
 }
 
+interface TokenCachePluginLike {
+  beforeCacheAccess(context: { tokenCache: { deserialize(value: string): void } }): Promise<void>;
+  afterCacheAccess(context: { cacheHasChanged: boolean; tokenCache: { serialize(): string } }): Promise<void>;
+}
+
 export interface MinecraftAuthServiceOptions {
   clientId?: string;
   fetchImpl?: typeof fetch;
   openExternal?: (url: string) => Promise<void>;
-  tokenCachePlugin?: unknown;
+  tokenCachePlugin?: TokenCachePluginLike;
   msalClient?: MsalClientLike;
+  msalClientFactory?: (plugin?: TokenCachePluginLike) => Promise<MsalClientLike>;
   cryptoProvider?: CryptoProviderLike;
   loopbackFactory?: (expectedState: string, timeoutMs: number) => Promise<LoopbackServer>;
   exchangeSession?: (microsoftAccessToken: string) => Promise<MinecraftSession>;
@@ -240,6 +248,8 @@ export async function createLoopbackRedirectServer(
     resolveCode = resolve;
     rejectCode = reject;
   });
+  // Cancellation may happen while the authorization URL is still being prepared.
+  void waitForCode.catch(() => undefined);
 
   const server = createServer((request, response) => {
     if (settled) {
@@ -296,18 +306,27 @@ export async function createLoopbackRedirectServer(
     close: () => {
       clearTimeout(timeout);
       server.close();
+      if (!settled) {
+        settled = true;
+        rejectCode(new AuthServiceError('AUTH_CANCELLED', 'Microsoft login was cancelled.'));
+      }
     }
   };
 }
 
 export class MinecraftAuthService {
+  private readonly operations = new AuthOperations();
+  private readonly operationContext = new AsyncLocalStorage<AuthOperation>();
+  private sessionAllowed = true;
   private profile: SafeMinecraftProfile | null = null;
   private minecraftAccessToken: string | null = null;
   private minecraftAccessTokenExpiresAt = 0;
   private readonly clientId: string;
   private readonly fetchImpl: typeof fetch;
   private readonly openExternal?: (url: string) => Promise<void>;
-  private readonly tokenCachePlugin?: unknown;
+  private readonly tokenCachePlugin?: TokenCachePluginLike;
+  private readonly msalClientFactory?: MinecraftAuthServiceOptions['msalClientFactory'];
+  private readonly injectedMsalClient?: MsalClientLike;
   private msalClient?: MsalClientLike;
   private cryptoProvider?: CryptoProviderLike;
   private readonly loopbackFactory: (expectedState: string, timeoutMs: number) => Promise<LoopbackServer>;
@@ -319,8 +338,25 @@ export class MinecraftAuthService {
     this.clientId = options.clientId ?? process.env.BBT_MICROSOFT_CLIENT_ID ?? PRODUCT_MICROSOFT_CLIENT_ID;
     this.fetchImpl = options.fetchImpl || fetch;
     this.openExternal = options.openExternal;
-    this.tokenCachePlugin = options.tokenCachePlugin;
+    const plugin = options.tokenCachePlugin;
+    this.tokenCachePlugin = plugin ? {
+      beforeCacheAccess: async (context) => {
+        const operation = this.operationContext.getStore();
+        if (!operation) return;
+        operation.check();
+        await plugin.beforeCacheAccess(context);
+        operation.check();
+      },
+      afterCacheAccess: async (context) => {
+        const operation = this.operationContext.getStore();
+        // Logout clears the persistent file explicitly; never let removal or late work recreate it.
+        if (!operation) return;
+        await this.operations.persist(operation, () => plugin.afterCacheAccess(context));
+      }
+    } : undefined;
     this.msalClient = options.msalClient;
+    this.injectedMsalClient = options.msalClient;
+    this.msalClientFactory = options.msalClientFactory;
     this.cryptoProvider = options.cryptoProvider;
     this.loopbackFactory = options.loopbackFactory || createLoopbackRedirectServer;
     this.exchangeSession =
@@ -341,7 +377,14 @@ export class MinecraftAuthService {
   private async getMsalClient(): Promise<MsalClientLike> {
     this.assertConfigured();
     if (this.msalClient) return this.msalClient;
+    if (this.msalClientFactory) {
+      const client = await this.msalClientFactory(this.tokenCachePlugin);
+      this.operationContext.getStore()?.check();
+      this.msalClient = client;
+      return client;
+    }
     const { PublicClientApplication } = await import('@azure/msal-node');
+    this.operationContext.getStore()?.check();
     this.msalClient = new PublicClientApplication({
       auth: { clientId: this.clientId, authority: AUTHORITY },
       cache: this.tokenCachePlugin ? { cachePlugin: this.tokenCachePlugin as never } : undefined
@@ -357,6 +400,8 @@ export class MinecraftAuthService {
   }
 
   private applySession(session: MinecraftSession): MinecraftSession {
+    this.operationContext.getStore()?.check();
+    this.sessionAllowed = true;
     this.profile = session.profile;
     this.minecraftAccessToken = session.accessToken;
     this.minecraftAccessTokenExpiresAt = session.expiresAt;
@@ -370,9 +415,7 @@ export class MinecraftAuthService {
         try {
           await this.ensureSession();
         } catch {
-          this.profile = null;
-          this.minecraftAccessToken = null;
-          this.minecraftAccessTokenExpiresAt = 0;
+          // A cancelled restore must not clear a newer interactive login.
         }
       }
     }
@@ -387,27 +430,28 @@ export class MinecraftAuthService {
   }
 
   async ensureSession(): Promise<MinecraftSession> {
-    const client = await this.getMsalClient();
-    const accounts = await client.getTokenCache().getAllAccounts();
-    const account = accounts[0];
-    if (!account) {
-      throw new AuthServiceError('AUTH_REQUIRED', 'Login to Microsoft before launching Minecraft.');
-    }
-
-    try {
-      const token = await client.acquireTokenSilent({ account, scopes: AUTH_SCOPES });
-      if (!token?.accessToken) {
-        throw new AuthServiceError('AUTH_REQUIRED', 'Microsoft session expired. Login again.');
+    if (!this.sessionAllowed) throw new AuthServiceError('AUTH_REQUIRED', 'Login to Microsoft before launching Minecraft.');
+    return this.operations.run((operation) => this.operationContext.run(operation, async () => {
+      const client = await this.getMsalClient();
+      operation.check();
+      const accounts = await client.getTokenCache().getAllAccounts();
+      operation.check();
+      const account = accounts[0];
+      if (!account) throw new AuthServiceError('AUTH_REQUIRED', 'Login to Microsoft before launching Minecraft.');
+      try {
+        const token = await client.acquireTokenSilent({ account, scopes: AUTH_SCOPES });
+        operation.check();
+        if (!token?.accessToken) throw new AuthServiceError('AUTH_REQUIRED', 'Microsoft session expired. Login again.');
+        return this.applySession(await this.exchangeSession(token.accessToken));
+      } catch (error) {
+        if (error instanceof AuthServiceError) throw error;
+        const errorCode = String((error as { errorCode?: string })?.errorCode || '');
+        if (/interaction_required|login_required|no_tokens_found/i.test(errorCode)) {
+          throw new AuthServiceError('AUTH_REQUIRED', 'Microsoft session expired. Login again.');
+        }
+        throw networkError(error);
       }
-      return this.applySession(await this.exchangeSession(token.accessToken));
-    } catch (error) {
-      if (error instanceof AuthServiceError) throw error;
-      const errorCode = String((error as { errorCode?: string })?.errorCode || '');
-      if (/interaction_required|login_required|no_tokens_found/i.test(errorCode)) {
-        throw new AuthServiceError('AUTH_REQUIRED', 'Microsoft session expired. Login again.');
-      }
-      throw networkError(error);
-    }
+    }));
   }
 
   async getSession(): Promise<MinecraftSession | null> {
@@ -431,16 +475,29 @@ export class MinecraftAuthService {
   }
 
   async logout(): Promise<void> {
-    if (this.msalClient) {
-      const cache = this.msalClient.getTokenCache();
-      const accounts = await cache.getAllAccounts();
-      await Promise.all(accounts.map((account) => cache.removeAccount(account)));
-    }
-    await this.clearTokenCache();
+    await this.cancelLogin();
+  }
+
+  async cancelLogin(): Promise<void> {
+    this.operations.cancel();
+    this.sessionAllowed = false;
+    const client = this.msalClient;
+    // An old MSAL client may still finish a request and populate its memory cache.
+    // Future login uses a new owned client and only current operations can write to disk.
+    this.msalClient = this.injectedMsalClient;
     this.profile = null;
     this.minecraftAccessToken = null;
     this.minecraftAccessTokenExpiresAt = 0;
     this.restoreAttempted = true;
+    await this.operations.clear(async () => {
+      try {
+        if (client) {
+          const cache = client.getTokenCache();
+          const accounts = await cache.getAllAccounts();
+          await Promise.all(accounts.map((account) => cache.removeAccount(account)));
+        }
+      } finally { await this.clearTokenCache(); }
+    });
   }
 
   async loginMicrosoft(): Promise<SafeMinecraftProfile> {
@@ -449,37 +506,52 @@ export class MinecraftAuthService {
       throw new AuthServiceError('AUTH_CONFIG_MISSING', 'System browser login is not available.');
     }
 
-    const [client, crypto] = await Promise.all([this.getMsalClient(), this.getCryptoProvider()]);
-    const state = crypto.createNewGuid();
-    const pkce = await crypto.generatePkceCodes();
-    const loopback = await this.loopbackFactory(state, CALLBACK_TIMEOUT_MS);
-
-    try {
-      const authCodeUrl = await client.getAuthCodeUrl({
-        scopes: AUTH_SCOPES,
-        redirectUri: loopback.redirectUri,
-        prompt: 'select_account',
-        state,
-        codeChallenge: pkce.challenge,
-        codeChallengeMethod: 'S256'
-      });
-      await this.openExternal(authCodeUrl);
-      const callback = await loopback.waitForCode;
-      const token = await client.acquireTokenByCode({
-        code: callback.code,
-        state: callback.state,
-        codeVerifier: pkce.verifier,
-        scopes: AUTH_SCOPES,
-        redirectUri: loopback.redirectUri
-      });
-      if (!token?.accessToken) {
-        throw new AuthServiceError('AUTH_REQUIRED', 'Microsoft login did not return an access token.');
+    this.restoreAttempted = true;
+    this.sessionAllowed = false;
+    return this.operations.run((operation) => this.operationContext.run(operation, async () => {
+      const [client, crypto] = await Promise.all([this.getMsalClient(), this.getCryptoProvider()]);
+      operation.check();
+      const state = crypto.createNewGuid();
+      const pkce = await crypto.generatePkceCodes();
+      operation.check();
+      const loopback = await this.loopbackFactory(state, CALLBACK_TIMEOUT_MS);
+      void loopback.waitForCode.catch(() => undefined);
+      let closed = false;
+      const close = () => { if (!closed) { closed = true; loopback.close(); } };
+      operation.signal.addEventListener('abort', close, { once: true });
+      try {
+        operation.check();
+        const authCodeUrl = await client.getAuthCodeUrl({
+          scopes: AUTH_SCOPES,
+          redirectUri: loopback.redirectUri,
+          prompt: 'select_account',
+          state,
+          codeChallenge: pkce.challenge,
+          codeChallengeMethod: 'S256'
+        });
+        operation.check();
+        await this.openExternal!(authCodeUrl);
+        operation.check();
+        const callback = await loopback.waitForCode;
+        operation.check();
+        const token = await client.acquireTokenByCode({
+          code: callback.code,
+          state: callback.state,
+          codeVerifier: pkce.verifier,
+          scopes: AUTH_SCOPES,
+          redirectUri: loopback.redirectUri
+        });
+        operation.check();
+        if (!token?.accessToken) {
+          throw new AuthServiceError('AUTH_REQUIRED', 'Microsoft login did not return an access token.');
+        }
+        return this.applySession(await this.exchangeSession(token.accessToken)).profile;
+      } catch (error) {
+        throw networkError(error);
+      } finally {
+        operation.signal.removeEventListener('abort', close);
+        close();
       }
-      return this.applySession(await this.exchangeSession(token.accessToken)).profile;
-    } catch (error) {
-      throw networkError(error);
-    } finally {
-      loopback.close();
-    }
+    }));
   }
 }

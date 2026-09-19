@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readSystemMemoryInfo } from './system-memory.js';
+vi.mock('./system-memory.js', () => ({ readSystemMemoryInfo: vi.fn(() => ({ totalMb: 32768, maxMb: 32768 })) }));
+afterEach(() => vi.mocked(readSystemMemoryInfo).mockReset().mockReturnValue({ totalMb: 32768, maxMb: 32768 }));
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -50,7 +53,8 @@ const settings: LauncherSettings = {
   height: 720,
   fullscreen: false,
   memoryMb: 8192,
-  selectedProject: 'northvale'
+  selectedProject: 'sainam',
+  starMotion: true
 };
 
 const profile: SafeMinecraftProfile = {
@@ -61,7 +65,7 @@ const profile: SafeMinecraftProfile = {
 };
 
 describe('launch service', () => {
-  it('launches Northvale with Minecraft 1.20.1, Forge 47.4.20, Java 17, and memory setting', async () => {
+  it('launches SaiNam with Minecraft 1.20.1, Forge 47.4.20, Java 17, and memory setting', async () => {
     const ensureInstalled = vi.fn(async (options) => {
       options.onProgress?.({ phase: 'INSTALLING_MINECRAFT', message: 'Installing Minecraft 1.20.1' });
       return { javaPath: 'managed-java/bin/java.exe' };
@@ -72,8 +76,8 @@ describe('launch service', () => {
 
     await launchProject({
       rootDir: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
-      projectId: 'northvale',
-      manifest,
+      projectId: 'sainam',
+      manifest: sainamManifest,
       settings,
       profile,
       minecraftAccessToken: 'minecraft-token',
@@ -84,7 +88,7 @@ describe('launch service', () => {
 
     expect(ensureInstalled).toHaveBeenCalledWith({
       rootDir: settings.appDirectory,
-      projectId: 'northvale',
+      projectId: 'sainam',
       minecraftVersion: '1.20.1',
       loader: 'forge',
       loaderVersion: '47.4.20',
@@ -95,7 +99,7 @@ describe('launch service', () => {
     expect(launchMinecraft).toHaveBeenCalledWith(
       expect.objectContaining({
         rootDir: settings.appDirectory,
-        projectId: 'northvale',
+        projectId: 'sainam',
         minecraftVersion: '1.20.1',
         loaderVersion: '47.4.20',
         javaMajor: 17,
@@ -112,6 +116,35 @@ describe('launch service', () => {
       'INSTALLING_MINECRAFT',
       'LAUNCHING'
     ]);
+  });
+
+  it('caps Java memory at the latest installed RAM value and preserves a valid legacy allocation', async () => {
+    vi.mocked(readSystemMemoryInfo).mockReturnValue({ totalMb: 8091, maxMb: 8064 });
+    const values: number[] = [];
+    const launcher = { ensureInstalled: async () => ({}), launchMinecraft: async (options: { memoryMb: number }) => { values.push(options.memoryMb); return {}; } };
+    for (const memoryMb of [65536, 1537]) {
+      await launchProject({ rootDir: settings.appDirectory, projectId: 'sainam', manifest: sainamManifest,
+        settings: { ...settings, memoryMb }, profile, minecraftAccessToken: 'token', launcher,
+        resolveManagedJava: async () => 'java.exe' });
+    }
+    expect(values).toEqual([8064, 1537]);
+  });
+
+  it('blocks launch when RAM cannot be read, before installing Java or Minecraft', async () => {
+    vi.mocked(readSystemMemoryInfo).mockImplementation(() => { throw Object.assign(new Error('memory unavailable'), { code: 'SYSTEM_MEMORY_UNAVAILABLE' }); });
+    const installed: string[] = [];
+    await expect(launchProject({ rootDir: settings.appDirectory, projectId: 'sainam', manifest: sainamManifest, settings, profile,
+      launcher: { ensureInstalled: async () => { installed.push('minecraft'); return {}; }, launchMinecraft: async () => ({}) },
+      resolveManagedJava: async () => { installed.push('java'); return 'java.exe'; }
+    })).rejects.toMatchObject({ code: 'SYSTEM_MEMORY_UNAVAILABLE' });
+    expect(installed).toEqual([]);
+  });
+
+  it('rejects Northvale at the launcher boundary', async () => {
+    await expect(launchProject({ rootDir: settings.appDirectory, projectId: 'northvale', manifest, settings, profile,
+      launcher: { ensureInstalled: async () => { throw new Error('must not install'); }, launchMinecraft: async () => ({}) },
+      resolveManagedJava: async () => { throw new Error('must not install'); }
+    })).rejects.toMatchObject({ code: 'PROJECT_LOCKED' });
   });
 
   it('launches SaiNam with Minecraft 1.20.1, Forge 47.4.20, and Java 17', async () => {

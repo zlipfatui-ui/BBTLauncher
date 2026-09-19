@@ -4,7 +4,9 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import type { LauncherSettings } from '../../shared/types.js';
-import { isProjectId, NORTHVALE_PROJECT_ID } from '../../shared/types.js';
+import { SAINAM_PROJECT_ID } from '../../shared/types.js';
+import { clampMemoryMb, getMemoryRange } from '../../shared/memory.js';
+import { readSystemMemoryInfo } from './system-memory.js';
 
 const settingsFileName = 'settings.json';
 const pendingSaves = new Map<string, Promise<LauncherSettings>>();
@@ -14,25 +16,36 @@ export function resolveLauncherRoot(appData = process.env.APPDATA): string {
 }
 
 export function defaultSettings(rootDir = resolveLauncherRoot()): LauncherSettings {
+  let memoryMb = 0;
+  try { memoryMb = getMemoryRange(readSystemMemoryInfo()).defaultMb; } catch {
+    // Startup remains available; the memory IPC reports the actual hardware error.
+  }
   return {
     appDirectory: rootDir,
     width: 1280,
     height: 720,
     fullscreen: false,
-    memoryMb: 8192,
-    selectedProject: NORTHVALE_PROJECT_ID
+    memoryMb,
+    selectedProject: SAINAM_PROJECT_ID,
+    starMotion: true
   };
 }
 
 function normalizeSettings(rootDir: string, value: Partial<LauncherSettings>): LauncherSettings {
   const defaults = defaultSettings(rootDir);
+  let memoryMb = Number.isFinite(value.memoryMb) && Number(value.memoryMb) >= 64
+    ? Math.floor(Number(value.memoryMb)) : defaults.memoryMb;
+  try { memoryMb = clampMemoryMb(memoryMb, readSystemMemoryInfo(), memoryMb); } catch {
+    // Preserve an existing value until hardware can be read; saves and launch validate it.
+  }
   return {
     appDirectory: typeof value.appDirectory === 'string' && value.appDirectory ? value.appDirectory : defaults.appDirectory,
     width: Number.isFinite(value.width) ? Math.max(640, Math.floor(Number(value.width))) : defaults.width,
     height: Number.isFinite(value.height) ? Math.max(480, Math.floor(Number(value.height))) : defaults.height,
     fullscreen: Boolean(value.fullscreen),
-    memoryMb: Number.isFinite(value.memoryMb) ? Math.max(1024, Math.floor(Number(value.memoryMb))) : defaults.memoryMb,
-    selectedProject: isProjectId(value.selectedProject) ? value.selectedProject : defaults.selectedProject
+    memoryMb,
+    selectedProject: SAINAM_PROJECT_ID,
+    starMotion: typeof value.starMotion === 'boolean' ? value.starMotion : true
   };
 }
 
@@ -57,6 +70,9 @@ export function saveSettings(
   const pending = (pendingSaves.get(key) ?? Promise.resolve()).catch(() => undefined).then(async () => {
     const current = await loadSettings(root);
     const settings = normalizeSettings(root, { ...current, ...patch });
+    if (Object.hasOwn(patch, 'memoryMb')) {
+      settings.memoryMb = clampMemoryMb(Number(patch.memoryMb), readSystemMemoryInfo(), current.memoryMb);
+    }
     await prepare?.(current, settings);
     await mkdir(root, { recursive: true });
     const temporaryPath = join(root, `${settingsFileName}.${randomUUID()}.tmp`);

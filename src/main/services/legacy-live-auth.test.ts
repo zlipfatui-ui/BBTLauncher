@@ -37,6 +37,83 @@ describe('legacy Live OAuth callback parsing', () => {
 });
 
 describe('LegacyLiveAuthService', () => {
+  it('cancels the owned login resource promptly and ignores a late authorization code', async () => {
+    let resolveCode!: (value: { code: string }) => void;
+    let signal: AbortSignal | undefined;
+    let stored: string | null = null;
+    let exchanges = 0;
+    const service = new LegacyLiveAuthService({
+      openAuthWindow: (_url, _redirect, abortSignal) => {
+        signal = abortSignal;
+        return new Promise((resolve) => { resolveCode = resolve; });
+      },
+      fetchImpl: (async () => { exchanges++; return new Response(JSON.stringify({ access_token: 'late', refresh_token: 'late-refresh' })); }) as typeof fetch,
+      exchangeSession: async () => minecraftSession,
+      loadRefreshToken: async () => stored,
+      saveRefreshToken: async (token) => { stored = token; },
+      clearRefreshToken: async () => { stored = null; }
+    });
+    const login = service.loginMicrosoft().catch((error) => error);
+    await vi.waitFor(() => expect(resolveCode).toBeTypeOf('function'));
+    await service.cancelLogin();
+    expect(signal?.aborted).toBe(true);
+    expect(await login).toMatchObject({ code: 'AUTH_CANCELLED' });
+    resolveCode({ code: 'late-code' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(exchanges).toBe(0);
+    expect(stored).toBeNull();
+    expect(await service.getState()).toEqual({ status: 'signed-out', profile: null });
+  });
+
+  it('prevents a cancelled late Minecraft exchange from persisting and permits a new login', async () => {
+    let resolveOld!: (session: MinecraftSession) => void;
+    let stored: string | null = null;
+    let exchanges = 0;
+    const service = new LegacyLiveAuthService({
+      openAuthWindow: async () => ({ code: 'code' }),
+      fetchImpl: (async () => new Response(JSON.stringify({ access_token: 'ms-token', refresh_token: `refresh-${exchanges}` }))) as typeof fetch,
+      exchangeSession: async () => {
+        exchanges++;
+        if (exchanges === 1) return new Promise((resolve) => { resolveOld = resolve; });
+        return { ...minecraftSession, profile: { ...minecraftSession.profile, name: 'NewPlayer' } };
+      },
+      loadRefreshToken: async () => stored,
+      saveRefreshToken: async (token) => { stored = token; },
+      clearRefreshToken: async () => { stored = null; }
+    });
+    const old = service.loginMicrosoft().catch((error) => error);
+    await vi.waitFor(() => expect(resolveOld).toBeTypeOf('function'));
+    await service.cancelLogin();
+    expect(await old).toMatchObject({ code: 'AUTH_CANCELLED' });
+    expect(stored).toBeNull();
+    expect(await service.loginMicrosoft()).toMatchObject({ name: 'NewPlayer' });
+    resolveOld(minecraftSession);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(stored).toBe('refresh-1');
+    expect(await service.getState()).toMatchObject({ status: 'signed-in', profile: { name: 'NewPlayer' } });
+  });
+
+  it('logout invalidates an in-flight session restore and a pending credential write', async () => {
+    let resolveWrite!: () => void;
+    let stored: string | null = 'old';
+    const service = new LegacyLiveAuthService({
+      openAuthWindow: async () => ({ code: 'code' }),
+      fetchImpl: (async () => new Response(JSON.stringify({ access_token: 'ms-token', refresh_token: 'late' }))) as typeof fetch,
+      exchangeSession: async () => minecraftSession,
+      loadRefreshToken: async () => stored,
+      saveRefreshToken: async (token) => { await new Promise<void>((resolve) => { resolveWrite = resolve; }); stored = token; },
+      clearRefreshToken: async () => { stored = null; }
+    });
+    const restore = service.getState();
+    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf('function'));
+    const logout = service.logout();
+    resolveWrite();
+    await logout;
+    await restore;
+    expect(stored).toBeNull();
+    expect(await service.getState()).toEqual({ status: 'signed-out', profile: null });
+  });
+
   it('opens the legacy Microsoft Live login URL and exchanges the returned code', async () => {
     let openedUrl = '';
     const openAuthWindow = vi.fn(async (url: string, redirectUri: string) => {

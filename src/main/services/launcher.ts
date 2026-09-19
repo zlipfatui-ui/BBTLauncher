@@ -13,6 +13,9 @@ import type {
 import { AuthServiceError } from './auth.js';
 import { ensureManagedJava } from './managed-java.js';
 import { inspectMinecraftRuntime, writeRuntimeMarker } from './runtime-cache.js';
+import { clampMemoryMb } from '../../shared/memory.js';
+import { readSystemMemoryInfo } from './system-memory.js';
+import { assertProjectAvailable } from './project-availability.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -71,6 +74,8 @@ export async function launchProject({
     ensureManagedJava({ rootDir: managedRoot, onProgress: managedProgress }),
   onProgress
 }: LaunchProjectOptions): Promise<LaunchResult> {
+  assertProjectAvailable(projectId);
+  readSystemMemoryInfo();
   const project = manifest.projects.find((entry) => entry.id === projectId);
   if (!project) throw new Error(`Project not found in launcher manifest: ${projectId}`);
 
@@ -103,7 +108,7 @@ export async function launchProject({
     loader: project.minecraft.loader,
     loaderVersion: project.minecraft.loaderVersion,
     javaMajor: project.minecraft.javaMajor,
-    memoryMb: settings.memoryMb,
+    memoryMb: clampMemoryMb(settings.memoryMb, readSystemMemoryInfo(), settings.memoryMb),
     width: settings.width,
     height: settings.height,
     fullscreen: settings.fullscreen,

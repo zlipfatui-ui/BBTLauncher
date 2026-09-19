@@ -12,17 +12,23 @@ import type {
   ProjectContentListResult,
   ProjectProgressEvent,
   ProjectStateResult,
+  ProjectScreenshotListResult,
+  ProjectScreenshotReadResult,
+  SystemMemoryInfo,
   SafeMinecraftProfile,
   SyncResult
 } from '../shared/types';
-import { isProjectId } from '../shared/types';
 
 export interface LauncherApi {
   auth: {
     getState(): Promise<IpcResult<AuthState>>;
     loginMicrosoft(): Promise<IpcResult<SafeMinecraftProfile>>;
+    cancelLogin(): Promise<IpcResult<void>>;
     logout(): Promise<IpcResult<void>>;
     getProfile(): Promise<SafeMinecraftProfile | null>;
+  };
+  system: {
+    getMemoryInfo(): Promise<IpcResult<SystemMemoryInfo>>;
   };
   settings: {
     load(): Promise<LauncherSettings>;
@@ -38,6 +44,13 @@ export interface LauncherApi {
     sync(projectId: string): Promise<SyncResult>;
     launch(projectId: string): Promise<IpcResult<LaunchResult>>;
     stop(projectId: string): Promise<ProjectLaunchState>;
+    screenshots: {
+      list(projectId: string): Promise<IpcResult<ProjectScreenshotListResult>>;
+      read(projectId: string, relativePath: string, thumbnail?: boolean): Promise<IpcResult<ProjectScreenshotReadResult>>;
+      openFile(projectId: string, relativePath: string): Promise<IpcResult<void>>;
+      revealFile(projectId: string, relativePath: string): Promise<IpcResult<void>>;
+      openFolder(projectId: string): Promise<IpcResult<void>>;
+    };
     content: {
       list(projectId: string, kind: ProjectContentKind): Promise<ProjectContentListResult>;
       importFiles(projectId: string, kind: ProjectContentKind, files: File[], overwrite?: boolean): Promise<ProjectContentImportResult>;
@@ -131,16 +144,9 @@ export const fallbackApi: LauncherApi = {
       };
     },
     async loginMicrosoft() {
-      return {
-        ok: true,
-        value: {
-          id: '898da750881840f09da4ea6822260b30',
-          name: 'Zlevyn',
-          avatarInitial: 'Z',
-          provider: 'microsoft'
-        }
-      };
+      return desktopUnavailable();
     },
+    async cancelLogin() { return desktopUnavailable(); },
     async logout() {
       return { ok: true, value: undefined };
     },
@@ -148,25 +154,30 @@ export const fallbackApi: LauncherApi = {
       return null;
     }
   },
+  system: {
+    async getMemoryInfo() { return desktopUnavailable(); }
+  },
   settings: {
     async load() {
       return {
-        appDirectory: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
+        appDirectory: '',
         width: 1280,
         height: 720,
         fullscreen: false,
-        memoryMb: 8192,
-        selectedProject: 'northvale'
+        memoryMb: 0,
+        selectedProject: 'sainam',
+        starMotion: true
       };
     },
     async save(settings) {
       return {
-        appDirectory: settings.appDirectory || 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
+        appDirectory: settings.appDirectory || '',
         width: settings.width || 1280,
         height: settings.height || 720,
         fullscreen: Boolean(settings.fullscreen),
-        memoryMb: settings.memoryMb || 8192,
-        selectedProject: isProjectId(settings.selectedProject) ? settings.selectedProject : 'northvale'
+        memoryMb: settings.memoryMb || 0,
+        selectedProject: 'sainam',
+        starMotion: settings.starMotion ?? true
       };
     },
     async selectAppDirectory() {
@@ -189,10 +200,17 @@ export const fallbackApi: LauncherApi = {
       return { status: 'ready', downloaded: 0, skipped: 0, totalBytes: 0, downloadedBytes: 0 };
     },
     async launch() {
-      return { ok: true, value: { pid: undefined } };
+      return desktopUnavailable();
     },
     async stop() {
       return { status: 'idle' };
+    },
+    screenshots: {
+      async list() { return desktopUnavailable(); },
+      async read() { return desktopUnavailable(); },
+      async openFile() { return desktopUnavailable(); },
+      async revealFile() { return desktopUnavailable(); },
+      async openFolder() { return desktopUnavailable(); }
     },
     content: {
       async list() {
@@ -241,6 +259,10 @@ export const fallbackApi: LauncherApi = {
     }
   }
 };
+
+function desktopUnavailable(): { ok: false; error: { code: 'DESKTOP_UNAVAILABLE'; message: string } } {
+  return { ok: false, error: { code: 'DESKTOP_UNAVAILABLE', message: 'This action is available in the BeforeBedtime desktop launcher.' } };
+}
 
 export function getLauncherApi(): LauncherApi {
   return window.bbtLauncher || fallbackApi;

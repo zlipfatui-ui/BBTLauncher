@@ -1,4 +1,4 @@
-import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, nativeImage, safeStorage, shell } from 'electron';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +36,9 @@ import { createProjectProgressEvent } from './services/project-progress.js';
 import electronUpdater from 'electron-updater';
 import { prepareGameDirectory } from './services/game-directory.js';
 import { createRuntimeOperations } from './services/runtime-operations.js';
+import { readSystemMemoryInfo } from './services/system-memory.js';
+import { createProjectScreenshotsService } from './services/project-screenshots.js';
+import { assertProjectAvailable } from './services/project-availability.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const launcherRoot = resolveLauncherRoot();
@@ -50,13 +53,15 @@ const legacyRefreshTokenPath = join(launcherRoot, 'auth', 'legacy-live-refresh-t
 interface AuthSessionService {
   getState(): Promise<AuthState>;
   loginMicrosoft(): Promise<SafeMinecraftProfile>;
+  cancelLogin(): Promise<void>;
   logout(): Promise<void>;
   getProfile(): Promise<SafeMinecraftProfile | null>;
   ensureSession(): Promise<MinecraftSession>;
 }
 
-function openLegacyLiveAuthWindow(url: string, redirectUri: string): Promise<{ code: string }> {
+function openLegacyLiveAuthWindow(url: string, redirectUri: string, signal?: AbortSignal): Promise<{ code: string }> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new AuthServiceError('AUTH_CANCELLED', 'Microsoft login was cancelled.')); return; }
     let settled = false;
     const parent = BrowserWindow.getFocusedWindow() ?? undefined;
     const authWindow = new BrowserWindow({
@@ -77,9 +82,12 @@ function openLegacyLiveAuthWindow(url: string, redirectUri: string): Promise<{ c
     const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
+      signal?.removeEventListener('abort', cancel);
       callback();
       if (!authWindow.isDestroyed()) authWindow.close();
     };
+    const cancel = () => finish(() => reject(new AuthServiceError('AUTH_CANCELLED', 'Microsoft login was cancelled.')));
+    signal?.addEventListener('abort', cancel, { once: true });
 
     const inspectUrl = (targetUrl: string) => {
       try {
@@ -96,6 +104,7 @@ function openLegacyLiveAuthWindow(url: string, redirectUri: string): Promise<{ c
     authWindow.webContents.on('will-navigate', (_event, targetUrl) => inspectUrl(targetUrl));
     authWindow.webContents.on('did-navigate', (_event, targetUrl) => inspectUrl(targetUrl));
     authWindow.once('closed', () => {
+      signal?.removeEventListener('abort', cancel);
       if (!settled) {
         settled = true;
         reject(new AuthServiceError('AUTH_CANCELLED', 'Microsoft login was cancelled.'));
@@ -129,6 +138,11 @@ function createAuthService(): AuthSessionService {
 const authService = createAuthService();
 const { autoUpdater } = electronUpdater;
 const contentDrawerWindowController = createContentDrawerWindowController();
+const screenshotsService = createProjectScreenshotsService({
+  imageFromBuffer: (bytes) => nativeImage.createFromBuffer(bytes),
+  openPath: (path) => shell.openPath(path),
+  showItemInFolder: (path) => shell.showItemInFolder(path)
+});
 
 function sendToAllWindows(channel: string, payload: unknown) {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -226,8 +240,10 @@ function registerIpc() {
   }
   ipcMain.handle('auth:getState', () => toIpcResult(() => authService.getState()));
   ipcMain.handle('auth:loginMicrosoft', () => toIpcResult(() => authService.loginMicrosoft()));
+  ipcMain.handle('auth:cancelLogin', () => toIpcResult(() => authService.cancelLogin()));
   ipcMain.handle('auth:logout', () => toIpcResult(() => authService.logout()));
   ipcMain.handle('auth:getProfile', () => authService.getProfile());
+  ipcMain.handle('system:getMemoryInfo', () => toIpcResult(async () => readSystemMemoryInfo()));
 
   ipcMain.handle('settings:load', () => loadSettings(launcherRoot));
   ipcMain.handle('settings:save', async (_event, settings: Partial<LauncherSettings>) => {
@@ -257,6 +273,7 @@ function registerIpc() {
   ipcMain.handle('project:getLaunchState', (_event, projectId: string) => projectLaunchManager.getState(projectId));
 
   runtimeHandle('project:sync', async (event, projectId: string) => {
+    assertProjectAvailable(projectId);
     const settings = await loadSettings(launcherRoot);
     const runtimeRoot = getRuntimeRoot(settings);
     const manifest = await manifestClient.refresh();
@@ -279,6 +296,8 @@ function registerIpc() {
 
   runtimeHandle('project:launch', (event, projectId: string) =>
     toIpcResult(async () => {
+      assertProjectAvailable(projectId);
+      readSystemMemoryInfo();
       const settings = await loadSettings(launcherRoot);
       const runtimeRoot = getRuntimeRoot(settings);
       const manifest = await manifestClient.refresh();
@@ -314,6 +333,18 @@ function registerIpc() {
   );
 
   ipcMain.handle('project:stop', (_event, projectId: string) => projectLaunchManager.stop(projectId));
+
+  function screenshotHandle(channel: string, operation: (root: string, projectId: string, ...args: any[]) => Promise<unknown>) {
+    ipcMain.handle(channel, (_event, projectId: string, ...args: any[]) => toIpcResult(() => runtimeOperations.run(async () => {
+      const settings = await loadSettings(launcherRoot);
+      return operation(getRuntimeRoot(settings), projectId, ...args);
+    })));
+  }
+  screenshotHandle('project:screenshots:list', (root, id) => screenshotsService.list(root, id));
+  screenshotHandle('project:screenshots:read', (root, id, path, thumbnail) => screenshotsService.read(root, id, path, thumbnail === true));
+  screenshotHandle('project:screenshots:openFile', (root, id, path) => screenshotsService.openFile(root, id, path));
+  screenshotHandle('project:screenshots:revealFile', (root, id, path) => screenshotsService.revealFile(root, id, path));
+  screenshotHandle('project:screenshots:openFolder', (root, id) => screenshotsService.openFolder(root, id));
 
   async function getProjectContentContext(projectId: string) {
     const settings = await loadSettings(launcherRoot);

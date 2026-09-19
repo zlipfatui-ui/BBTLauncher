@@ -7,6 +7,8 @@ import type {
 } from '../../shared/types.js';
 import type { MinecraftSession } from './auth.js';
 import { launchProject, type LaunchProjectOptions } from './launcher.js';
+import { assertProjectAvailable } from './project-availability.js';
+import { readSystemMemoryInfo } from './system-memory.js';
 
 export interface RunProjectLaunchOptions {
   rootDir: string;
@@ -29,6 +31,8 @@ export async function runProjectLaunch({
   launch = launchProject,
   onProgress
 }: RunProjectLaunchOptions): Promise<LaunchResult> {
+  assertProjectAvailable(projectId);
+  readSystemMemoryInfo();
   onProgress?.({
     phase: 'AUTHENTICATING',
     message: 'Refreshing Microsoft and Minecraft session'
@@ -37,7 +41,7 @@ export async function runProjectLaunch({
 
   onProgress?.({
     phase: 'SYNCING',
-    message: 'Checking Northvale files'
+    message: 'Checking project files'
   });
   await sync();
 

@@ -1,8 +1,14 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getRuntimeRoot, loadSettings, saveSettings } from './settings';
+import { readSystemMemoryInfo } from './system-memory.js';
+
+vi.mock('./system-memory.js', () => ({
+  readSystemMemoryInfo: vi.fn(() => ({ totalMb: 32768, maxMb: 32768 }))
+}));
+afterEach(() => vi.mocked(readSystemMemoryInfo).mockReset().mockReturnValue({ totalMb: 32768, maxMb: 32768 }));
 
 describe('launcher settings', () => {
   it('preserves the custom game directory and display settings when switching projects', async () => {
@@ -43,7 +49,7 @@ describe('launcher settings', () => {
     }
   });
 
-  it('loads Northvale defaults when settings.json does not exist', async () => {
+  it('loads SaiNam defaults when settings.json does not exist', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
     try {
       const settings = await loadSettings(root);
@@ -53,7 +59,8 @@ describe('launcher settings', () => {
       expect(settings.height).toBe(720);
       expect(settings.fullscreen).toBe(false);
       expect(settings.memoryMb).toBe(8192);
-      expect(settings.selectedProject).toBe('northvale');
+      expect(settings.selectedProject).toBe('sainam');
+      expect(settings.starMotion).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -76,7 +83,7 @@ describe('launcher settings', () => {
       expect(settings.height).toBe(900);
       expect(settings.fullscreen).toBe(true);
       expect(settings.memoryMb).toBe(6144);
-      expect(settings.selectedProject).toBe('northvale');
+      expect(settings.selectedProject).toBe('sainam');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -98,14 +105,14 @@ describe('launcher settings', () => {
     }
   });
 
-  it('falls back to Northvale for an unknown project id', async () => {
+  it('falls back to SaiNam for an unknown project id', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
     try {
       const saved = await saveSettings(root, {
         selectedProject: 'unknown' as never
       });
 
-      expect(saved.selectedProject).toBe('northvale');
+      expect(saved.selectedProject).toBe('sainam');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -118,7 +125,39 @@ describe('launcher settings', () => {
       height: 1080,
       fullscreen: true,
       memoryMb: 8192,
-      selectedProject: 'northvale'
+      selectedProject: 'northvale',
+      starMotion: true
     })).toBe('D:/NorthvaleLauncherData');
+  });
+
+  it('migrates only project selection and defaults motion while preserving legacy RAM and paths', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
+    try {
+      await writeFile(join(root, 'settings.json'), JSON.stringify({ appDirectory: 'D:/Existing Games', memoryMb: 1537, selectedProject: 'northvale' }));
+      expect(await loadSettings(root)).toMatchObject({ appDirectory: 'D:/Existing Games', memoryMb: 1537, selectedProject: 'sainam', starMotion: true });
+      expect(await saveSettings(root, { starMotion: false })).toMatchObject({ memoryMb: 1537, starMotion: false });
+      expect(await loadSettings(root)).toMatchObject({ memoryMb: 1537, starMotion: false });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('defaults to half RAM on an 8 GB PC and caps save at installed RAM', async () => {
+    vi.mocked(readSystemMemoryInfo).mockReturnValue({ totalMb: 8192, maxMb: 8192 });
+    const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
+    try {
+      expect((await loadSettings(root)).memoryMb).toBe(4096);
+      expect((await saveSettings(root, { memoryMb: 65536 })).memoryMb).toBe(8192);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('keeps settings readable without inventing RAM when hardware is unavailable, but rejects RAM saves', async () => {
+    vi.mocked(readSystemMemoryInfo).mockImplementation(() => { throw Object.assign(new Error('unavailable'), { code: 'SYSTEM_MEMORY_UNAVAILABLE' }); });
+    const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
+    try {
+      expect((await loadSettings(root)).memoryMb).toBe(0);
+      await expect(saveSettings(root, { memoryMb: 8192 })).rejects.toMatchObject({ code: 'SYSTEM_MEMORY_UNAVAILABLE' });
+      await writeFile(join(root, 'settings.json'), JSON.stringify({ memoryMb: 6145 }));
+      expect((await loadSettings(root)).memoryMb).toBe(6145);
+      expect((await saveSettings(root, { starMotion: false })).memoryMb).toBe(6145);
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

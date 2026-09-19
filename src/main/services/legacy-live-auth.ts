@@ -1,4 +1,5 @@
 import type { AuthState, SafeMinecraftProfile } from '../../shared/types.js';
+import { AuthOperations, type AuthOperation } from './auth-operations.js';
 import {
   AuthServiceError,
   authenticateMinecraftSession,
@@ -21,7 +22,7 @@ export interface LegacyLiveAuthServiceOptions {
   clientId?: string;
   redirectUri?: string;
   fetchImpl?: typeof fetch;
-  openAuthWindow: (url: string, redirectUri: string) => Promise<{ code: string }>;
+  openAuthWindow: (url: string, redirectUri: string, signal?: AbortSignal) => Promise<{ code: string }>;
   exchangeSession?: (microsoftAccessToken: string) => Promise<MinecraftSession>;
   loadRefreshToken: () => Promise<string | null>;
   saveRefreshToken: (refreshToken: string) => Promise<void>;
@@ -57,6 +58,7 @@ export function extractLegacyLiveCode(url: string, redirectUri = LEGACY_LIVE_RED
 }
 
 export class LegacyLiveAuthService {
+  private readonly operations = new AuthOperations();
   private profile: SafeMinecraftProfile | null = null;
   private minecraftAccessToken: string | null = null;
   private minecraftAccessTokenExpiresAt = 0;
@@ -64,7 +66,7 @@ export class LegacyLiveAuthService {
   private readonly clientId: string;
   private readonly redirectUri: string;
   private readonly fetchImpl: typeof fetch;
-  private readonly openAuthWindow: (url: string, redirectUri: string) => Promise<{ code: string }>;
+  private readonly openAuthWindow: LegacyLiveAuthServiceOptions['openAuthWindow'];
   private readonly exchangeSession: (microsoftAccessToken: string) => Promise<MinecraftSession>;
   private readonly loadRefreshToken: () => Promise<string | null>;
   private readonly saveRefreshToken: (refreshToken: string) => Promise<void>;
@@ -93,13 +95,14 @@ export class LegacyLiveAuthService {
     return url.toString();
   }
 
-  private async exchangeLiveToken(params: URLSearchParams): Promise<LegacyLiveTokenResponse> {
+  private async exchangeLiveToken(params: URLSearchParams, signal: AbortSignal): Promise<LegacyLiveTokenResponse> {
     let response: Response;
     try {
       response = await this.fetchImpl(LEGACY_LIVE_TOKEN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString()
+        body: params.toString(),
+        signal
       });
     } catch (error) {
       throw networkError(error);
@@ -129,28 +132,31 @@ export class LegacyLiveAuthService {
     };
   }
 
-  private async exchangeCode(code: string): Promise<LegacyLiveTokenResponse> {
+  private async exchangeCode(code: string, signal: AbortSignal): Promise<LegacyLiveTokenResponse> {
     return this.exchangeLiveToken(new URLSearchParams({
       client_id: this.clientId,
       code,
       grant_type: 'authorization_code',
       redirect_uri: this.redirectUri
-    }));
+    }), signal);
   }
 
-  private async refreshLiveToken(refreshToken: string): Promise<LegacyLiveTokenResponse> {
+  private async refreshLiveToken(refreshToken: string, signal: AbortSignal): Promise<LegacyLiveTokenResponse> {
     return this.exchangeLiveToken(new URLSearchParams({
       grant_type: 'refresh_token',
       client_id: this.clientId,
       refresh_token: refreshToken
-    }));
+    }), signal);
   }
 
-  private async applyMicrosoftToken(token: LegacyLiveTokenResponse): Promise<MinecraftSession> {
-    if (token.refreshToken) {
-      await this.saveRefreshToken(token.refreshToken);
-    }
+  private async applyMicrosoftToken(token: LegacyLiveTokenResponse, operation: AuthOperation): Promise<MinecraftSession> {
+    operation.check();
     const session = await this.exchangeSession(token.accessToken);
+    operation.check();
+    if (token.refreshToken) {
+      await this.operations.persist(operation, () => this.saveRefreshToken(token.refreshToken!));
+    }
+    operation.check();
     this.profile = session.profile;
     this.minecraftAccessToken = session.accessToken;
     this.minecraftAccessTokenExpiresAt = session.expiresAt;
@@ -158,8 +164,12 @@ export class LegacyLiveAuthService {
   }
 
   async loginMicrosoft(): Promise<SafeMinecraftProfile> {
-    const { code } = await this.openAuthWindow(this.buildAuthorizeUrl(), this.redirectUri);
-    return (await this.applyMicrosoftToken(await this.exchangeCode(code))).profile;
+    this.restoreAttempted = true;
+    return this.operations.run(async (operation) => {
+      const { code } = await this.openAuthWindow(this.buildAuthorizeUrl(), this.redirectUri, operation.signal);
+      operation.check();
+      return (await this.applyMicrosoftToken(await this.exchangeCode(code, operation.signal), operation)).profile;
+    });
   }
 
   async ensureSession(): Promise<MinecraftSession> {
@@ -175,11 +185,12 @@ export class LegacyLiveAuthService {
       };
     }
 
-    const refreshToken = await this.loadRefreshToken();
-    if (!refreshToken) {
-      throw new AuthServiceError('AUTH_REQUIRED', 'Login to Microsoft before launching Minecraft.');
-    }
-    return this.applyMicrosoftToken(await this.refreshLiveToken(refreshToken));
+    return this.operations.run(async (operation) => {
+      const refreshToken = await this.loadRefreshToken();
+      operation.check();
+      if (!refreshToken) throw new AuthServiceError('AUTH_REQUIRED', 'Login to Microsoft before launching Minecraft.');
+      return this.applyMicrosoftToken(await this.refreshLiveToken(refreshToken, operation.signal), operation);
+    });
   }
 
   async getSession(): Promise<MinecraftSession | null> {
@@ -197,9 +208,7 @@ export class LegacyLiveAuthService {
       try {
         await this.ensureSession();
       } catch {
-        this.profile = null;
-        this.minecraftAccessToken = null;
-        this.minecraftAccessTokenExpiresAt = 0;
+        // Failed or cancelled restore never overwrites a newer interactive session.
       }
     }
     return {
@@ -213,10 +222,15 @@ export class LegacyLiveAuthService {
   }
 
   async logout(): Promise<void> {
-    await this.clearRefreshToken();
+    await this.cancelLogin();
+  }
+
+  async cancelLogin(): Promise<void> {
+    this.operations.cancel();
     this.profile = null;
     this.minecraftAccessToken = null;
     this.minecraftAccessTokenExpiresAt = 0;
     this.restoreAttempted = true;
+    await this.operations.clear(this.clearRefreshToken);
   }
 }

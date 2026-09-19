@@ -7,8 +7,8 @@ const manifest = {
   generatedAt: '2026-07-05T00:00:00.000Z',
   projects: [
     {
-      id: 'northvale',
-      title: 'Northvale',
+      id: 'sainam',
+      title: 'SaiNam',
       statusText: 'UP TO DATE',
       minecraft: {
         version: '1.20.1',
@@ -28,7 +28,8 @@ const settings: LauncherSettings = {
   height: 720,
   fullscreen: false,
   memoryMb: 8192,
-  selectedProject: 'northvale'
+  selectedProject: 'sainam',
+  starMotion: true
 };
 
 describe('project launch orchestration', () => {
@@ -48,7 +49,7 @@ describe('project launch orchestration', () => {
 
     const result = await runProjectLaunch({
       rootDir: settings.appDirectory,
-      projectId: 'northvale',
+      projectId: 'sainam',
       manifest,
       settings,
       ensureSession: async () => {
@@ -74,5 +75,15 @@ describe('project launch orchestration', () => {
       'DOWNLOADING_JAVA'
     ]);
     expect(result).toEqual({ pid: 1234 });
+  });
+
+  it('rejects Northvale before authentication, synchronization or launch', async () => {
+    const work: string[] = [];
+    await expect(runProjectLaunch({ rootDir: settings.appDirectory, projectId: 'northvale', manifest, settings,
+      ensureSession: async () => { work.push('auth'); throw new Error('should not authenticate'); },
+      sync: async () => { work.push('sync'); throw new Error('should not sync'); },
+      launch: async () => { work.push('launch'); return {}; }
+    })).rejects.toMatchObject({ code: 'PROJECT_LOCKED' });
+    expect(work).toEqual([]);
   });
 });
