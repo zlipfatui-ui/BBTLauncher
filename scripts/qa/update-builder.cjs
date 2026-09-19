@@ -1,4 +1,10 @@
 const path = require('node:path');
+const fs = require('node:fs');
+
+const dependencies = path.resolve(__dirname, '../../node_modules');
+if (fs.lstatSync(dependencies).isSymbolicLink() || fs.realpathSync(dependencies).toLowerCase() !== dependencies.toLowerCase()) {
+  throw new Error('QA packaging requires physical node_modules. Build from a physical checkout or isolated physical staging project.');
+}
 
 const version = process.env.BBT_QA_VERSION || '0.3.7';
 if (!['0.3.7', '0.3.8'].includes(version)) throw new Error('QA builds support only 0.3.7 and 0.3.8.');

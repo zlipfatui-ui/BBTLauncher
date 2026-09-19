@@ -4,6 +4,8 @@ These sources package a separate application that imports the compiled productio
 
 Run from the repository root in PowerShell. Build the production TypeScript first, then both isolated QA installers. Never publish these files.
 
+Use physical `node_modules`; the QA config rejects a junction because it can cause electron-builder to omit transitive dependencies. An isolated staging project can contain copies of `package.json`, `package-lock.json`, `scripts/qa`, compiled `dist-electron`, and physical dependencies. Set `BBT_QA_ROOT` to a dedicated `update-e2e` directory on a drive with sufficient free space.
+
 ```powershell
 npm run build:electron
 $env:BBT_QA_ROOT = Join-Path (Get-Location) 'release/qa/update-e2e'

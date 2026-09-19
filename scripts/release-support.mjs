@@ -45,6 +45,14 @@ export async function verifyGitCommit(projectDir, commit) {
   return head;
 }
 
+export async function verifyPhysicalDependencies(projectDir) {
+  const dependencies = path.join(projectDir, 'node_modules');
+  const entry = await lstat(dependencies);
+  if (!entry.isDirectory() || entry.isSymbolicLink() || !samePath(await realpath(dependencies), dependencies)) {
+    throw new Error('Release packaging requires physical node_modules in the project. A junction can make npm omit required transitive dependencies. Build from a physical checkout or physical staging directory.');
+  }
+}
+
 export async function hashStream(stream) {
   const sha512 = createHash('sha512');
   const sha256 = createHash('sha256');

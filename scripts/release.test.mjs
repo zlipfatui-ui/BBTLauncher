@@ -88,6 +88,19 @@ test('release cleanup refuses junctions without deleting the target data', async
   assert.equal(await readFile(path.join(target, 'keep.txt'), 'utf8'), 'keep');
 });
 
+test('release build rejects a node_modules junction that breaks npm dependency collection', async (t) => {
+  assert.equal(typeof support.verifyPhysicalDependencies, 'function');
+  const { root } = await fixture(t);
+  const dependencies = path.join(root, 'node_modules');
+  await mkdir(dependencies);
+  await support.verifyPhysicalDependencies(root);
+  await rm(dependencies, { recursive: true, force: true });
+  const shared = path.join(root, 'shared');
+  await mkdir(shared);
+  await symlink(shared, dependencies, process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(support.verifyPhysicalDependencies(root), /physical|junction/i);
+});
+
 test('requires an exact clean HEAD and rejects another commit or a dirty tracked file', async (t) => {
   assert.equal(typeof support.verifyGitCommit, 'function');
   const { root } = await fixture(t);

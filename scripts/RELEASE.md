@@ -2,6 +2,8 @@
 
 Finish implementation, run `npm test` and the required UI/updater QA, then commit all source changes. `release:win` requires that exact full commit SHA and a clean tracked Git state. It preserves the production app ID, product name, update provider, and default `../../BBTLauncher-release` layout. `BBT_RELEASE_DIR` or `--release-dir` can select another dedicated directory whose leaf name is `BBTLauncher-release`; cleanup rejects junctions and redirected paths.
 
+Package from a physical checkout with physical `node_modules`. A Windows junction to another checkout can make npm report hoisted dependencies as missing and electron-builder silently omit them; the release builder rejects that layout before cleaning/building. Use a physical checkout on a drive with enough free space for dependencies, unpacked Electron, both installers, and temporary archives.
+
 ```powershell
 $releaseCommit = (git rev-parse HEAD).Trim()
 $env:BBT_RELEASE_COMMIT = $releaseCommit

@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { cleanReleaseDirectory, parseReleaseArgs, resolveReleaseDirectory, rootDir, validateLocalRelease, verifyGitCommit, writeReleaseManifest } from './release-support.mjs';
+import { cleanReleaseDirectory, parseReleaseArgs, resolveReleaseDirectory, rootDir, validateLocalRelease, verifyGitCommit, verifyPhysicalDependencies, writeReleaseManifest } from './release-support.mjs';
 
 const options = parseReleaseArgs();
 const commit = await verifyGitCommit(rootDir, options.commit);
+await verifyPhysicalDependencies(rootDir);
 const releaseDir = resolveReleaseDirectory(rootDir, options.releaseDir);
 const { version } = JSON.parse(await readFile(path.join(rootDir, 'package.json'), 'utf8'));
 const npmCli = process.env.npm_execpath;
