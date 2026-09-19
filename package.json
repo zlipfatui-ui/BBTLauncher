@@ -1,6 +1,6 @@
 {
   "name": "bbt-launcher",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": true,
   "description": "BeforeBedtime Northvale Minecraft launcher.",
   "repository": {
@@ -92,10 +92,10 @@
     },
     "nsis": {
       "artifactName": "BeforeBedtime-Launcher-Setup-${version}.${ext}",
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
       "allowElevation": true,
-      "allowToChangeInstallationDirectory": false
+      "allowToChangeInstallationDirectory": true
     },
     "portable": {
       "artifactName": "BeforeBedtime-Launcher-Portable-${version}.${ext}"

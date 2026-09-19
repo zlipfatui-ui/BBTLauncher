@@ -5,6 +5,44 @@ import { describe, expect, it } from 'vitest';
 import { getRuntimeRoot, loadSettings, saveSettings } from './settings';
 
 describe('launcher settings', () => {
+  it('preserves the custom game directory and display settings when switching projects', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
+    try {
+      const saved = await saveSettings(root, {
+        appDirectory: join(root, 'เกม Before Bedtime'),
+        width: 1600,
+        height: 900,
+        fullscreen: true,
+        memoryMb: 6144,
+        selectedProject: 'northvale'
+      });
+      await saveSettings(root, { selectedProject: 'sainam' });
+      const reloaded = await loadSettings(root);
+      expect(reloaded).toEqual({ ...saved, selectedProject: 'sainam' });
+      expect(getRuntimeRoot(reloaded)).toBe(saved.appDirectory);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves independent settings from concurrent saves', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
+    try {
+      await Promise.all([
+        saveSettings(root, { appDirectory: join(root, 'Games') }),
+        saveSettings(root, { selectedProject: 'sainam' }),
+        saveSettings(root, { memoryMb: 4096 })
+      ]);
+      expect(await loadSettings(root)).toMatchObject({
+        appDirectory: join(root, 'Games'),
+        selectedProject: 'sainam',
+        memoryMb: 4096
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('loads Northvale defaults when settings.json does not exist', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
     try {
