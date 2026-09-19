@@ -51,7 +51,13 @@ it('holds the screenshot lease while loading the current root and rejects migrat
   const pendingRoots: Array<() => void> = [];
   registerProjectScreenshotsIpc({ handle: (channel, handler) => { handlers.set(channel, handler); } }, {
     operations, loadRuntimeRoot: () => new Promise<string>((resolve) => { pendingRoots.push(() => resolve('unused')); }),
-    service: { list: async () => ({ entries: [], directoryExists: false }) } as ReturnType<typeof createProjectScreenshotsService>
+    service: {
+      list: async () => ({ entries: [], directoryExists: false }),
+      read: async () => ({ dataUrl: 'unused' }),
+      openFile: async () => undefined,
+      revealFile: async () => undefined,
+      openFolder: async () => undefined
+    }
   });
   const first = handlers.get('project:screenshots:list')!({}, 'sainam');
   const second = handlers.get('project:screenshots:list')!({}, 'sainam');
