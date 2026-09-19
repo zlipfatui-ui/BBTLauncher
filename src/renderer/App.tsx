@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { operationError } from './operation-error';
 import type {
   LauncherUpdateState,
   LauncherManifest,
@@ -246,6 +247,7 @@ function SettingsPanel({
   const skinUrl = getMinecraftSkinUrl(profile);
   const [skinFailed, setSkinFailed] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [saveError, setSaveError] = useState('');
   const [resolutionOpen, setResolutionOpen] = useState(false);
   const resolutionPickerRef = useRef<HTMLDivElement>(null);
   const showSkin = Boolean(skinUrl && !skinFailed);
@@ -278,6 +280,7 @@ function SettingsPanel({
 
   async function save() {
     setSaveState('saving');
+    setSaveError('');
     try {
       const savedSettings = await api.settings.save(settings);
       await api.window?.applyDisplaySettings?.({
@@ -288,7 +291,8 @@ function SettingsPanel({
       setSettings(savedSettings);
       setSaveState('saved');
       window.setTimeout(() => setSaveState('idle'), 1800);
-    } catch {
+    } catch (error) {
+      setSaveError(operationError(error, 'Save failed'));
       setSaveState('failed');
     }
   }
@@ -344,16 +348,17 @@ function SettingsPanel({
           </div>
         </section>
         <section className="settings-card directory-card">
-          <div className="settings-label">App Directory</div>
+          <div className="settings-label">Game &amp; Modpack Folder</div>
           <div className="directory-control">
             <input
               className="settings-input directory-input"
-              aria-label="App Directory"
+              aria-label="Game & Modpack Folder"
               value={settings.appDirectory}
               readOnly
             />
-            <button className="browse-button" type="button" onClick={browseAppDirectory}>Browse</button>
+            <button className="browse-button" type="button" onClick={browseAppDirectory} disabled={saveState === 'saving'}>Browse</button>
           </div>
+          <p className="field-caption">เลือกที่เก็บ Modpack, โลก และ Java กด Save เพื่อคัดลอกข้อมูลไปที่ใหม่ โดยเก็บต้นฉบับไว้</p>
         </section>
         <section className="settings-card display-card">
           <div className="settings-label">Resolution</div>
@@ -430,7 +435,7 @@ function SettingsPanel({
         </section>
         <div className="settings-save-row">
           <span className={`save-status ${saveState === 'failed' ? 'failed' : ''}`} role="status">
-            {saveState === 'saved' ? 'Saved' : saveState === 'failed' ? 'Save failed' : ''}
+            {saveState === 'saved' ? 'Saved' : saveState === 'failed' ? saveError : saveState === 'saving' ? 'กำลังบันทึกและเตรียมโฟลเดอร์เกม…' : ''}
           </span>
           <button className="save-button" type="button" onClick={save} disabled={saveState === 'saving'}>
             {saveState === 'saving' ? 'Saving' : 'Save'}

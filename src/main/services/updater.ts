@@ -3,9 +3,10 @@ import type { LauncherUpdateState } from '../../shared/types.js';
 
 export interface AutoUpdaterLike extends EventEmitter {
   autoDownload: boolean;
+  autoInstallOnAppQuit?: boolean;
   checkForUpdates(): Promise<unknown>;
   downloadUpdate(): Promise<unknown>;
-  quitAndInstall(): void;
+  quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
 }
 
 export interface LauncherUpdateService {
@@ -18,6 +19,7 @@ export interface LauncherUpdateService {
 export interface LauncherUpdateServiceOptions {
   updater: AutoUpdaterLike;
   onStateChange?: (state: LauncherUpdateState) => void;
+  prepareToInstall?: () => void;
 }
 
 interface UpdateInfoLike {
@@ -32,8 +34,11 @@ function messageFromError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function createLauncherUpdateService({ updater, onStateChange }: LauncherUpdateServiceOptions): LauncherUpdateService {
+export function createLauncherUpdateService({ updater, onStateChange, prepareToInstall }: LauncherUpdateServiceOptions): LauncherUpdateService {
   updater.autoDownload = true;
+  // Installation must pass the same busy/game checks as Restart to update.
+  updater.autoInstallOnAppQuit = false;
+  let installing = false;
   let state: LauncherUpdateState = { status: 'idle' };
 
   function emit(next: LauncherUpdateState): LauncherUpdateState {
@@ -55,9 +60,10 @@ export function createLauncherUpdateService({ updater, onStateChange }: Launcher
   updater.on('update-downloaded', (info: UpdateInfoLike) =>
     emit({ status: 'downloaded', version: info?.version || state.version, percent: 100, message: undefined })
   );
-  updater.on('error', (error: unknown) =>
-    emit({ status: 'error', message: messageFromError(error) })
-  );
+  updater.on('error', (error: unknown) => {
+    installing = false;
+    emit({ status: 'error', message: messageFromError(error) });
+  });
 
   return {
     getState() {
@@ -82,7 +88,15 @@ export function createLauncherUpdateService({ updater, onStateChange }: Launcher
       return state;
     },
     quitAndInstall() {
-      updater.quitAndInstall();
+      if (state.status !== 'downloaded' || installing) return;
+      try {
+        prepareToInstall?.();
+        installing = true;
+        updater.quitAndInstall(true, true);
+      } catch (error) {
+        installing = false;
+        emit({ status: 'downloaded', message: messageFromError(error) });
+      }
     }
   };
 }

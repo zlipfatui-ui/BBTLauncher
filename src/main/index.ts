@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,9 +34,12 @@ import {
 import { createContentDrawerWindowController } from './services/content-drawer-window.js';
 import { createProjectProgressEvent } from './services/project-progress.js';
 import electronUpdater from 'electron-updater';
+import { prepareGameDirectory } from './services/game-directory.js';
+import { createRuntimeOperations } from './services/runtime-operations.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const launcherRoot = resolveLauncherRoot();
+const runtimeOperations = createRuntimeOperations();
 const manifestBaseUrl =
   process.env.BBT_MANIFEST_BASE_URL || 'https://webbbt.zlipfatui.workers.dev';
 const manifestClient = createManifestClient({ baseUrl: manifestBaseUrl });
@@ -135,6 +138,10 @@ function sendToAllWindows(channel: string, payload: unknown) {
 
 const updateService = createLauncherUpdateService({
   updater: autoUpdater,
+  prepareToInstall: () => {
+    runtimeOperations.assertIdle();
+    if (projectLaunchManager.getState().status !== 'idle') throw new Error('Stop Minecraft before updating the launcher.');
+  },
   onStateChange: (state) => sendToAllWindows('updater:state', state)
 });
 
@@ -214,13 +221,24 @@ function createWindow(settings: LauncherSettings): BrowserWindow {
 }
 
 function registerIpc() {
+  function runtimeHandle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => Promise<unknown>) {
+    ipcMain.handle(channel, (event, ...args) => runtimeOperations.run(() => listener(event, ...args)));
+  }
   ipcMain.handle('auth:getState', () => toIpcResult(() => authService.getState()));
   ipcMain.handle('auth:loginMicrosoft', () => toIpcResult(() => authService.loginMicrosoft()));
   ipcMain.handle('auth:logout', () => toIpcResult(() => authService.logout()));
   ipcMain.handle('auth:getProfile', () => authService.getProfile());
 
   ipcMain.handle('settings:load', () => loadSettings(launcherRoot));
-  ipcMain.handle('settings:save', (_event, settings) => saveSettings(launcherRoot, settings));
+  ipcMain.handle('settings:save', async (_event, settings: Partial<LauncherSettings>) => {
+    const current = await loadSettings(launcherRoot);
+    if (!settings.appDirectory || settings.appDirectory === current.appDirectory) return saveSettings(launcherRoot, settings);
+    if (projectLaunchManager.getState().status !== 'idle') {
+      throw new Error('Stop Minecraft before changing the game folder.');
+    }
+    return runtimeOperations.changeDirectory(() => saveSettings(launcherRoot, settings, (previous, proposed) =>
+      prepareGameDirectory(previous.appDirectory, proposed.appDirectory)));
+  });
   ipcMain.handle('settings:selectAppDirectory', (_event, defaultPath?: string) => selectAppDirectory(dialog, defaultPath));
 
   ipcMain.handle('manifest:refresh', async () => {
@@ -238,7 +256,7 @@ function registerIpc() {
 
   ipcMain.handle('project:getLaunchState', (_event, projectId: string) => projectLaunchManager.getState(projectId));
 
-  ipcMain.handle('project:sync', async (event, projectId: string) => {
+  runtimeHandle('project:sync', async (event, projectId: string) => {
     const settings = await loadSettings(launcherRoot);
     const runtimeRoot = getRuntimeRoot(settings);
     const manifest = await manifestClient.refresh();
@@ -259,7 +277,7 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle('project:launch', (event, projectId: string) =>
+  runtimeHandle('project:launch', (event, projectId: string) =>
     toIpcResult(async () => {
       const settings = await loadSettings(launcherRoot);
       const runtimeRoot = getRuntimeRoot(settings);
@@ -322,7 +340,7 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle('project:content:import', async (_event, projectId, kind, sourcePaths, overwrite) => {
+  runtimeHandle('project:content:import', async (_event, projectId, kind, sourcePaths, overwrite) => {
     const context = await getProjectContentContext(projectId);
     return importProjectContent({
       rootDir: context.runtimeRoot,
@@ -334,7 +352,7 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle('project:content:trash', async (_event, projectId, kind, relativePath) => {
+  runtimeHandle('project:content:trash', async (_event, projectId, kind, relativePath) => {
     const context = await getProjectContentContext(projectId);
     await trashProjectContent({
       rootDir: context.runtimeRoot,
@@ -346,7 +364,7 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle('project:content:setEnabled', async (_event, projectId, kind, relativePath, enabled) => {
+  runtimeHandle('project:content:setEnabled', async (_event, projectId, kind, relativePath, enabled) => {
     const context = await getProjectContentContext(projectId);
     await setProjectContentEnabled({
       rootDir: context.runtimeRoot,
@@ -358,7 +376,7 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle('project:content:openFolder', async (_event, projectId, kind) => {
+  runtimeHandle('project:content:openFolder', async (_event, projectId, kind) => {
     const context = await getProjectContentContext(projectId);
     const directory = await ensureProjectContentDirectory(context.runtimeRoot, context.projectId, kind);
     const error = await shell.openPath(directory);
@@ -419,4 +437,13 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   safelyUpdateDiscordPresence(() => discordPresence.stop());
+});
+
+// electron-updater emits this only after starting its verified installer.
+// Destroy all windows so renderer close handlers cannot hold the executable open.
+nativeAutoUpdater.on('before-quit-for-update', () => {
+  safelyUpdateDiscordPresence(() => discordPresence.stop());
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.destroy();
+  }
 });

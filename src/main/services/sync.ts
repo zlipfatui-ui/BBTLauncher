@@ -168,7 +168,13 @@ export async function syncProject({
   let skipped = 0;
   const pendingFiles: Array<{ file: LauncherFile; path: string; syncMode: LauncherFileSyncMode; destination: string }> = [];
   const manifestFiles = syncManifestFiles(rootDir, projectId, project.files);
-  const managedIndex = await readManagedProjectIndex(rootDir, projectId);
+  // A deleted project is a reinstall: its old seed history must not suppress
+  // resource packs which no longer exist alongside the rest of the pack.
+  const hasProjectDirectory = existsSync(join(rootDir, 'projects', projectId));
+  const managedIndex = hasProjectDirectory
+    ? await readManagedProjectIndex(rootDir, projectId)
+    : { version: 1 as const, files: [] };
+  if (!hasProjectDirectory) await writeManagedProjectIndex(rootDir, projectId, []);
   const previouslyManagedPaths = new Set(managedIndex.files.map((file) => file.path));
 
   for (const { file, path: safePath, syncMode } of manifestFiles) {

@@ -3,6 +3,7 @@ import type { LauncherProject, LauncherUpdateState, ProjectId } from '../shared/
 import { NORTHVALE_PROJECT_ID } from '../shared/types';
 import { resolveRendererAssetUrl } from './assets';
 import { ShoppingBagIcon } from './icons';
+import { operationError } from './operation-error';
 
 export type LauncherTab = 'project' | 'shop' | 'settings';
 
@@ -166,6 +167,11 @@ export function LauncherHeader({
         >
           {updateLabel}
         </button>
+      ) : null}
+      {updateState.status === 'downloaded' && updateState.message ? (
+        <span role="status" className="field-caption">
+          {operationError(new Error(updateState.message), 'ยังอัปเดตไม่ได้ กรุณาลองอีกครั้ง')}
+        </span>
       ) : null}
     </header>
   );

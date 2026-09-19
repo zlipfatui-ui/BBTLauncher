@@ -46,7 +46,8 @@ export async function loadSettings(rootDir = resolveLauncherRoot()): Promise<Lau
 
 export function saveSettings(
   rootDir = resolveLauncherRoot(),
-  nextSettings: Partial<LauncherSettings>
+  nextSettings: Partial<LauncherSettings>,
+  prepare?: (current: LauncherSettings, proposed: LauncherSettings) => Promise<void>
 ): Promise<LauncherSettings> {
   const root = resolve(rootDir);
   const key = process.platform === 'win32' ? root.toLowerCase() : root;
@@ -56,6 +57,7 @@ export function saveSettings(
   const pending = (pendingSaves.get(key) ?? Promise.resolve()).catch(() => undefined).then(async () => {
     const current = await loadSettings(root);
     const settings = normalizeSettings(root, { ...current, ...patch });
+    await prepare?.(current, settings);
     await mkdir(root, { recursive: true });
     const temporaryPath = join(root, `${settingsFileName}.${randomUUID()}.tmp`);
     try {

@@ -116,6 +116,33 @@ async function writeManagedIndex(root: string, projectId: string, files: Array<{
 }
 
 describe('project sync', () => {
+  it('restores resource pack seeds when reinstalling a deleted project even if metadata remains', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-reinstall-'));
+    const manifest = asSaiNam(makeFileManifest('resourcepacks/default.zip', 'pack', 'seed'));
+    const fetchImpl = async () => new Response('pack');
+    try {
+      await syncProject({ rootDir: root, projectId: 'sainam', manifest, baseUrl: 'https://example.test', fetchImpl });
+      await rm(join(root, 'projects/sainam'), { recursive: true });
+      const result = await syncProject({ rootDir: root, projectId: 'sainam', manifest, baseUrl: 'https://example.test', fetchImpl });
+      expect(result.downloaded).toBe(1);
+      expect(await readFile(join(root, 'projects/sainam/resourcepacks/default.zip'), 'utf8')).toBe('pack');
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('keeps deleted-project seed history reset when the first reinstall attempt fails partway', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-reinstall-retry-'));
+    const manifest = asSaiNam(makeFileManifest('config/test.txt', 'pack'));
+    manifest.projects[0].files.push({ ...manifest.projects[0].files[0], path: 'resourcepacks/default.zip', url: '/files/pack.zip', syncMode: 'seed' });
+    try {
+      const options = { rootDir: root, projectId: 'sainam', manifest, baseUrl: 'https://example.test' };
+      await syncProject({ ...options, fetchImpl: async () => new Response('pack') });
+      await rm(join(root, 'projects/sainam'), { recursive: true });
+      await expect(syncProject({ ...options, fetchImpl: async (url) => String(url).endsWith('pack.zip') ? new Response('', { status: 503 }) : new Response('pack') })).rejects.toThrow(/503/);
+      await syncProject({ ...options, fetchImpl: async () => new Response('pack') });
+      expect(await readFile(join(root, 'projects/sainam/resourcepacks/default.zip'), 'utf8')).toBe('pack');
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it('downloads changed files, verifies hash, and skips clean files on the next run', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-'));
     const body = 'northvale mod bytes';

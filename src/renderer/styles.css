@@ -1248,6 +1248,14 @@ button {
   min-height: 164px;
 }
 
+.project-action-error {
+  max-width: 520px;
+  color: #ffb4a8;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .directory-card {
   grid-area: directory;
   min-height: 164px;

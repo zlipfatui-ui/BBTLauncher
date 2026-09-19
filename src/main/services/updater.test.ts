@@ -12,6 +12,31 @@ function makeUpdater() {
 }
 
 describe('launcher update service', () => {
+  it('only restarts for a completed download and requests silent install with relaunch once', () => {
+    const updater = makeUpdater();
+    const prepareToInstall = vi.fn();
+    const service = createLauncherUpdateService({ updater, prepareToInstall });
+    service.quitAndInstall();
+    expect(updater.quitAndInstall).not.toHaveBeenCalled();
+    updater.emit('update-downloaded', { version: '0.3.7' });
+    service.quitAndInstall();
+    service.quitAndInstall();
+    expect(prepareToInstall).toHaveBeenCalledOnce();
+    expect(updater.quitAndInstall).toHaveBeenCalledExactlyOnceWith(true, true);
+  });
+
+  it('keeps the app available when preparation refuses an update and allows retry', () => {
+    const updater = makeUpdater();
+    const prepareToInstall = vi.fn().mockImplementationOnce(() => { throw new Error('Stop Minecraft first.'); });
+    const service = createLauncherUpdateService({ updater, prepareToInstall });
+    updater.emit('update-downloaded', { version: '0.3.7' });
+    service.quitAndInstall();
+    expect(updater.quitAndInstall).not.toHaveBeenCalled();
+    expect(service.getState()).toMatchObject({ status: 'downloaded', message: 'Stop Minecraft first.' });
+    service.quitAndInstall();
+    expect(updater.quitAndInstall).toHaveBeenCalledExactlyOnceWith(true, true);
+  });
+
   it('checks GitHub update feed and lets electron-updater auto-download available releases', async () => {
     const updater = makeUpdater();
     const service = createLauncherUpdateService({ updater });

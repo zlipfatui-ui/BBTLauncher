@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { operationError } from './operation-error';
 import type {
   ContentDrawerLayout,
   LaunchProgress,
@@ -43,6 +44,7 @@ export function ProjectPanel({
   const [projectStateResult, setProjectStateResult] = useState<ProjectStateResult | null>(null);
   const [launchState, setLaunchState] = useState<ProjectLaunchState>({ status: 'idle' });
   const [status, setStatus] = useState('CHECKING');
+  const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
   const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -132,8 +134,12 @@ export function ProjectPanel({
               : project.statusText
         );
       })
-      .catch(() => {
-        if (active) setStatus('FAILED');
+      .catch((error) => {
+        if (active) {
+          setStatus(operationError(error));
+          setActionError(operationError(error));
+          setProjectState('install');
+        }
       });
     return () => {
       active = false;
@@ -141,6 +147,7 @@ export function ProjectPanel({
   }, [api, project.id, project.statusText]);
 
   async function runProjectAction() {
+    setActionError('');
     if (launchState.status === 'running') {
       setStatus('STOPPING');
       await api.project.stop(project.id);
@@ -158,8 +165,9 @@ export function ProjectPanel({
         setProjectStateResult({ state: 'ready', missing: 0, changed: 0, stale: 0 });
         setStatus(project.statusText);
         setProgressPercent(null);
-      } catch {
-        setStatus('FAILED');
+      } catch (error) {
+        setStatus(operationError(error));
+        setActionError(operationError(error));
         setProgressPercent(null);
       } finally {
         setBusy(false);
@@ -170,14 +178,20 @@ export function ProjectPanel({
     setBusy(true);
     setProgressPercent(null);
     setStatus('AUTHENTICATING');
-    const result = await api.project.launch(project.id);
-    if (result.ok) {
-      if (!result.value.pid) setStatus(project.statusText);
-    } else {
-      setStatus(result.error.message);
+    try {
+      const result = await api.project.launch(project.id);
+      if (result.ok) {
+        if (!result.value.pid) setStatus(project.statusText);
+      } else {
+        setStatus(result.error.message);
+        setActionError(result.error.message);
+      }
+    } catch (error) {
+      setActionError(operationError(error));
+    } finally {
+      setProgressPercent(null);
+      setBusy(false);
     }
-    setProgressPercent(null);
-    setBusy(false);
   }
 
   async function openContentDrawer() {
@@ -241,6 +255,7 @@ export function ProjectPanel({
                 <span>MANAGE CONTENT</span>
               </button>
             </div>
+            {actionError ? <p role="alert" className="project-action-error">{actionError}</p> : null}
           </div>
 
           {gallery.length ? (

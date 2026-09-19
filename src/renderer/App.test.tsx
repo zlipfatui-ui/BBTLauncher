@@ -610,6 +610,21 @@ describe('App', () => {
     expect(api.updater.quitAndInstall).toHaveBeenCalledOnce();
   });
 
+  it('explains server verification errors and allows retry without claiming the pack is ready', async () => {
+    const user = userEvent.setup();
+    const api = makeApi(profile);
+    api.project.getState = vi.fn(async () => ({ state: 'install' as const, missing: 1, changed: 0, stale: 0 }));
+    api.project.sync = vi.fn().mockRejectedValueOnce(new Error('Downloaded file failed SHA256 verification: config/fancymenu/customization/pause_screen_layout.txt'))
+      .mockResolvedValueOnce({ status: 'ready', downloaded: 1, skipped: 0, totalBytes: 1, downloadedBytes: 1 });
+    render(<App api={api} />);
+    await user.click(screen.getByRole('button', { name: /click to start/i }));
+    await user.click(await screen.findByRole('button', { name: /^install$/i }));
+    expect(await screen.findByText('ไฟล์บนเซิร์ฟเวอร์ไม่ตรงกับข้อมูล Modpack กรุณาลองใหม่ภายหลัง')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^play$/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^install$/i }));
+    expect(await screen.findByRole('button', { name: /^play$/i })).toBeInTheDocument();
+  });
+
   it('shows INSTALL for a fresh project and syncs without launching', async () => {
     const user = userEvent.setup();
     const api = makeApi(profile);
@@ -1158,7 +1173,7 @@ describe('App', () => {
     await screen.findByText('NORTHVALE / SEASON 01');
     await user.click(within(screen.getByRole('navigation', { name: 'Main tabs' })).getByRole('button', { name: 'Settings' }));
 
-    const directoryInput = screen.getByLabelText('App Directory');
+    const directoryInput = screen.getByLabelText('Game & Modpack Folder');
     expect(directoryInput).toHaveValue('C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher');
     expect(directoryInput).toHaveAttribute('readonly');
 
