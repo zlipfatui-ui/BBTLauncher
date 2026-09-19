@@ -43,3 +43,20 @@ An HTML range with unaligned legacy min/value and fixed step=64 sanitizes the le
 ## Remaining integration QA
 
 Root handles renderer tests, native Electron end-to-end UI/auth/screenshots QA and release/update verification. No user settings, credentials, game data or external release state were touched by this subtask.
+
+## Scoped review fixes (2026-09-20 03:00 local)
+
+Addressed both screenshot findings:
+
+- P1: extracted the actual main-process screenshot IPC registration into `project-screenshots-ipc.ts`. Read/list/openFile/revealFile use shared runtime read leases, acquired before resolving the current settings directory. Concurrent thumbnails/full images and synchronization can proceed together. All read leases remain visible to the updater idle guard and prevent directory migration; migration prevents new read leases. `openFolder` retains the existing mutation lock because it can create a directory. Other mutation serialization remains unchanged.
+- P2: screenshot reads now open one `FileHandle`, compare its bigint device/inode identity and size/mtime/ctime to the validated path before and after opening/reading, and read all bytes through that handle. Replaced or changed files and unavailable file identity fail closed before decoding. Every path closes the handle in `finally`. Shell open/reveal continue resolving and validating the path immediately before handing it to the OS; the external application necessarily reopens a pathname, so the launcher cannot guarantee identity after the OS handoff.
+
+Regression evidence:
+
+- The extracted old IPC coordination failed both new integration tests: all concurrent calls during synchronization returned errors; only one overlapping root read started. Shared leases make both tests pass, with real temporary screenshot files and actual IPC handler coordination.
+- The old pathname-read implementation reproduced an actual Windows junction swap exposing `private-outside-image` to the decoder while restoring the original directory before post-read realpath validation. The FileHandle implementation does not decode those bytes. Windows may refuse the ancestor rename while a child handle is open; that case explicitly returns SCREENSHOT_UNAVAILABLE. A second test swaps the ancestor only while opening, restores it, then proves the different opened file is rejected and its handle is closed (EBADF afterward).
+- Focused runtime/screenshot tests: 19 passed across 4 files. All 27 backend files passed in the full run (191 backend tests).
+- `npm run build:electron`: passed. `git diff --check`: no whitespace errors.
+- Full `npm test` at 02:58: release tests 17/17 passed; Vitest 246 passed / 2 failed, 30 files passed / 1 failed. Remaining root-owned App.test.tsx failures: `syncs update (0 missing/0 changed/1 stale) before PLAY` (play button not found), and `keeps game state mounted across settings and shop` (getState calls 2 vs expected 1). A React act warning also appeared in the social-controls test. Root was notified with exact names.
+
+Filesystem limits: byte reads pin an opened file and validate its identity; this does not promise exclusive ownership against another process rewriting the same file or a hostile filesystem fabricating file identities. Changes visible in file metadata fail closed. OS shell actions accept paths rather than FileHandles, so their post-handoff lifecycle belongs to the OS/application.

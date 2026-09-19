@@ -38,6 +38,7 @@ import { prepareGameDirectory } from './services/game-directory.js';
 import { createRuntimeOperations } from './services/runtime-operations.js';
 import { readSystemMemoryInfo } from './services/system-memory.js';
 import { createProjectScreenshotsService } from './services/project-screenshots.js';
+import { registerProjectScreenshotsIpc } from './services/project-screenshots-ipc.js';
 import { assertProjectAvailable } from './services/project-availability.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -334,17 +335,11 @@ function registerIpc() {
 
   ipcMain.handle('project:stop', (_event, projectId: string) => projectLaunchManager.stop(projectId));
 
-  function screenshotHandle(channel: string, operation: (root: string, projectId: string, ...args: any[]) => Promise<unknown>) {
-    ipcMain.handle(channel, (_event, projectId: string, ...args: any[]) => toIpcResult(() => runtimeOperations.run(async () => {
-      const settings = await loadSettings(launcherRoot);
-      return operation(getRuntimeRoot(settings), projectId, ...args);
-    })));
-  }
-  screenshotHandle('project:screenshots:list', (root, id) => screenshotsService.list(root, id));
-  screenshotHandle('project:screenshots:read', (root, id, path, thumbnail) => screenshotsService.read(root, id, path, thumbnail === true));
-  screenshotHandle('project:screenshots:openFile', (root, id, path) => screenshotsService.openFile(root, id, path));
-  screenshotHandle('project:screenshots:revealFile', (root, id, path) => screenshotsService.revealFile(root, id, path));
-  screenshotHandle('project:screenshots:openFolder', (root, id) => screenshotsService.openFolder(root, id));
+  registerProjectScreenshotsIpc(ipcMain, {
+    operations: runtimeOperations,
+    loadRuntimeRoot: async () => getRuntimeRoot(await loadSettings(launcherRoot)),
+    service: screenshotsService
+  });
 
   async function getProjectContentContext(projectId: string) {
     const settings = await loadSettings(launcherRoot);

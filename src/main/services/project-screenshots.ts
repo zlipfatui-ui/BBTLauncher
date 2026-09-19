@@ -1,4 +1,6 @@
-import { mkdir, readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { mkdir, readdir, realpath, stat } from 'node:fs/promises';
+import type { BigIntStats } from 'node:fs';
+import { open as openFileHandle } from './screenshot-file-access.js';
 import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { isProjectId, type ProjectScreenshotListResult, type ProjectScreenshotReadResult } from '../../shared/types.js';
 import { AuthServiceError } from './auth.js';
@@ -57,13 +59,48 @@ async function screenshotDirectory(rootDir: string, projectId: string, create = 
   return parent;
 }
 
-async function screenshotFile(rootDir: string, projectId: string, name: string): Promise<string> {
+interface ValidatedScreenshot {
+  path: string;
+  metadata: BigIntStats;
+}
+
+async function screenshotFile(rootDir: string, projectId: string, name: string): Promise<ValidatedScreenshot> {
   validateName(name);
   const directory = await screenshotDirectory(rootDir, projectId);
   if (!directory) throw unavailable('The screenshots folder does not exist yet.');
   const path = await realpath(join(directory, name));
-  if (!contained(directory, path) || !(await stat(path)).isFile()) throw unavailable('This screenshot is outside the project folder or is not a file.');
-  return path;
+  if (!contained(directory, path)) throw unavailable('This screenshot is outside the project folder.');
+  const metadata = await stat(path, { bigint: true });
+  if (!metadata.isFile()) throw unavailable('This screenshot is not a file.');
+  return { path, metadata };
+}
+
+function assertSameFile(expected: BigIntStats, actual: BigIntStats): void {
+  if (!actual.isFile() || expected.ino === 0n || actual.ino === 0n || expected.dev !== actual.dev || expected.ino !== actual.ino ||
+      expected.size !== actual.size || expected.mtimeNs !== actual.mtimeNs || expected.ctimeNs !== actual.ctimeNs) {
+    throw unavailable('The screenshot changed while being read. Refresh the gallery.');
+  }
+}
+
+async function readValidatedScreenshot(rootDir: string, projectId: string, name: string): Promise<Buffer> {
+  const validated = await screenshotFile(rootDir, projectId, name);
+  const handle = await openFileHandle(validated.path, 'r');
+  try {
+    // Bind the bytes to the exact file validated before open, not to a path that can be redirected.
+    const opened = await handle.stat({ bigint: true });
+    assertSameFile(validated.metadata, opened);
+    const beforeRead = await screenshotFile(rootDir, projectId, name);
+    if (beforeRead.path !== validated.path) throw unavailable('The screenshot moved. Refresh the gallery.');
+    assertSameFile(opened, beforeRead.metadata);
+    const bytes = await handle.readFile();
+    assertSameFile(opened, await handle.stat({ bigint: true }));
+    const afterRead = await screenshotFile(rootDir, projectId, name);
+    if (afterRead.path !== validated.path) throw unavailable('The screenshot moved. Refresh the gallery.');
+    assertSameFile(opened, afterRead.metadata);
+    return bytes;
+  } finally {
+    await handle.close();
+  }
 }
 
 async function safely<T>(operation: () => Promise<T>): Promise<T> {
@@ -89,9 +126,8 @@ export function createProjectScreenshotsService(options: ScreenshotServiceOption
         for (const name of await readdir(directory)) {
           if (!imageExtensions.has(extname(name).toLowerCase())) continue;
           try {
-            const path = await screenshotFile(rootDir, projectId, name);
-            const file = await stat(path);
-            entries.push({ relativePath: name, name, size: file.size, modifiedAt: file.mtime.toISOString() });
+            const { metadata: file } = await screenshotFile(rootDir, projectId, name);
+            entries.push({ relativePath: name, name, size: Number(file.size), modifiedAt: file.mtime.toISOString() });
           } catch (error) {
             if (isMissing(error) || error instanceof AuthServiceError) continue;
             throw error;
@@ -103,10 +139,7 @@ export function createProjectScreenshotsService(options: ScreenshotServiceOption
     },
     read(rootDir: string, projectId: string, name: string, thumbnail = false): Promise<ProjectScreenshotReadResult> {
       return safely(async () => {
-        const path = await screenshotFile(rootDir, projectId, name);
-        const bytes = await readFile(path);
-        // Recheck containment after I/O before exposing the bytes to the renderer.
-        if (path !== await screenshotFile(rootDir, projectId, name)) throw unavailable('The screenshot changed while being read. Refresh the gallery.');
+        const bytes = await readValidatedScreenshot(rootDir, projectId, name);
         const image = options.imageFromBuffer(bytes);
         if (image.isEmpty()) throw unavailable('This screenshot could not be decoded.');
         const { width, height } = image.getSize();
@@ -117,11 +150,11 @@ export function createProjectScreenshotsService(options: ScreenshotServiceOption
       });
     },
     openFile(rootDir: string, projectId: string, name: string): Promise<void> {
-      return safely(async () => open(await screenshotFile(rootDir, projectId, name)));
+      return safely(async () => open((await screenshotFile(rootDir, projectId, name)).path));
     },
     revealFile(rootDir: string, projectId: string, name: string): Promise<void> {
       return safely(async () => {
-        const path = await screenshotFile(rootDir, projectId, name);
+        const { path } = await screenshotFile(rootDir, projectId, name);
         if (!options.showItemInFolder) throw unavailable('Revealing screenshot files is not available.');
         options.showItemInFolder(path);
       });
