@@ -51,6 +51,41 @@ function apiFor(signedIn = true): LauncherApi {
 }
 
 describe("0.3.8 production navigation", () => {
+  it("enters the main page and opens panels without scripted motion when reduced motion is preferred", async () => {
+    const previous = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "animate",
+    );
+    const animate = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      value: animate,
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    try {
+      render(<App api={apiFor()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Click to start" }));
+      });
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole("button", { name: "ตั้งค่า Launcher" }),
+        );
+      });
+      expect(
+        screen.getByRole("dialog", { name: "ตั้งค่า Launcher" }),
+      ).toBeVisible();
+      expect(animate).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous)
+        Object.defineProperty(HTMLElement.prototype, "animate", previous);
+      else delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
+    }
+  });
   it("keeps the wordmark visible when React replays mounting effects", async () => {
     render(
       <StrictMode>
