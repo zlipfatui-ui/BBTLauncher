@@ -1,656 +1,585 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { operationError } from './operation-error';
-import type {
-  LauncherUpdateState,
-  LauncherManifest,
-  LauncherProject,
-  LauncherSettings,
-  ProjectId,
-  SafeMinecraftProfile
-} from '../shared/types';
-import { NORTHVALE_PROJECT_ID } from '../shared/types';
-import type { LauncherApi } from './launcherApi';
-import { fallbackManifest, getLauncherApi } from './launcherApi';
-import { DiscordIcon, TikTokIcon, YouTubeIcon } from './icons';
-import { LauncherHeader } from './LauncherHeader';
-import { ProjectPanel as ProjectPage } from './ProjectPanel';
-import '@ibm/plex-sans-thai/css/ibm-plex-sans-thai-default.css';
-import './styles.css';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { LauncherSettings, SafeMinecraftProfile } from "../shared/types";
+import {
+  fallbackManifest,
+  getLauncherApi,
+  type LauncherApi,
+} from "./launcherApi";
+import { resolveRendererAssetUrl } from "./assets";
+import { Icon, IconDefinitions, Starfield } from "./Visuals";
+import { move, resetMotion } from "./motion";
+import { MainView } from "./MainView";
+import { operationError } from "./operation-error";
+import { version } from "../../package.json";
+import "./styles.css";
 
-type Screen = 'splash' | 'auth' | 'main';
-type Tab = 'project' | 'shop' | 'settings';
-type SaveState = 'idle' | 'saving' | 'saved' | 'failed';
-type TransitionPhase = 'idle' | 'splash-exit' | 'auth-enter' | 'main-enter';
-
-const routeSwitchDelayMs = 180;
-const routeTransitionDurationMs = 430;
-
-const defaultLauncherSettings: LauncherSettings = {
-  appDirectory: 'C:/Users/zLip/AppData/Roaming/.beforebedtime-launcher',
+type Route = "start" | "login" | "main";
+export const initialSettings: LauncherSettings = {
+  appDirectory: "",
   width: 1280,
   height: 720,
   fullscreen: false,
-  memoryMb: 8192,
-  selectedProject: NORTHVALE_PROJECT_ID
+  memoryMb: 0,
+  selectedProject: "sainam",
+  starMotion: true,
 };
-
-function resolveSelectedProject(
-  manifest: LauncherManifest,
-  selectedProject: ProjectId
-): LauncherProject {
-  return manifest.projects.find((project) => project.id === selectedProject)
-    ?? manifest.projects.find((project) => project.id === NORTHVALE_PROJECT_ID)
-    ?? manifest.projects[0]
-    ?? fallbackManifest.projects[0];
-}
-
-const socialLinks = [
-  { label: 'YouTube', href: 'https://www.youtube.com/@BeforeBedtimeProject', icon: <YouTubeIcon /> },
-  { label: 'TikTok', href: 'https://www.tiktok.com/@beforebedtimeproject', icon: <TikTokIcon /> },
-  { label: 'Discord', href: 'https://discord.gg/V5KaAfDpzw', icon: <DiscordIcon /> }
+export const socialLinks = [
+  { name: "discord", label: "Discord", url: "https://discord.gg/V5KaAfDpzw" },
+  {
+    name: "tiktok",
+    label: "TikTok",
+    url: "https://www.tiktok.com/@beforebedtimeproject",
+  },
+  {
+    name: "youtube",
+    label: "YouTube",
+    url: "https://www.youtube.com/@BeforeBedtimeProject",
+  },
 ];
-
-const resolutionPresets = [
-  { label: '1280 x 720', width: 1280, height: 720 },
-  { label: '1366 x 768', width: 1366, height: 768 },
-  { label: '1600 x 900', width: 1600, height: 900 },
-  { label: '1920 x 1080', width: 1920, height: 1080 },
-  { label: '2560 x 1440', width: 2560, height: 1440 }
-];
-
-const splashStars = Array.from({ length: 52 }, (_, index) => ({
-  left: `${(index * 37 + 7) % 96}%`,
-  top: `${(index * 53 + 19) % 108}%`,
-  size: `${8 + (index % 5) * 3.2}px`,
-  duration: `${11 + (index % 7) * 1.3}s`,
-  delay: `-${(index * 1.17) % 13}s`,
-  opacity: `${0.34 + (index % 4) * 0.1}`
-}));
-
-function MicrosoftMark() {
-  return (
-    <span className="microsoft-mark" aria-hidden="true">
-      <span />
-      <span />
-      <span />
-      <span />
-    </span>
-  );
-}
-
-function getMinecraftSkinUrl(profile: SafeMinecraftProfile | null): string | null {
-  if (!profile?.id || profile.id === 'Not connected') return null;
-  return `https://mc-heads.net/avatar/${profile.id}/96`;
-}
-
-function getResolutionValue(width: number, height: number): string {
-  return `${width}x${height}`;
-}
-
-function WindowControls({ api }: { api: LauncherApi }) {
-  const [maximized, setMaximized] = useState(false);
-
-  async function toggleMaximize() {
-    if (!api.window) return;
-    setMaximized(await api.window.toggleMaximize());
-  }
-
-  return (
-    <>
-      <div className="window-drag-region" />
-      <div className="window-chrome" aria-label="Window controls">
-        <div className="window-controls">
-          <button type="button" onClick={() => api.window?.minimize()} aria-label="Minimize">
-            <span className="minimize-icon" aria-hidden="true" />
-          </button>
-          <button type="button" onClick={toggleMaximize} aria-label={maximized ? 'Restore' : 'Maximize'}>
-            <span className={`maximize-icon ${maximized ? 'restore' : ''}`} aria-hidden="true" />
-          </button>
-          <button className="close-control" type="button" onClick={() => api.window?.close()} aria-label="Close">
-            <span className="close-icon" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function Splash({ onStart, api, isExiting }: { onStart: () => void; api: LauncherApi; isExiting: boolean }) {
-  return (
-    <section className={`screen splash ${isExiting ? 'is-exiting' : ''}`}>
-      <div className="splash-stars" aria-hidden="true">
-        {splashStars.map((star, index) => (
-          <svg
-            className="star-particle"
-            key={index}
-            viewBox="0 0 24 24"
-            style={{
-              '--star-left': star.left,
-              '--star-top': star.top,
-              '--star-size': star.size,
-              '--star-duration': star.duration,
-              '--star-delay': star.delay,
-              '--star-opacity': star.opacity
-            } as React.CSSProperties}
-          >
-            <path d="M12 0c.62 7.52 4.48 11.38 12 12-7.52.62-11.38 4.48-12 12C11.38 16.48 7.52 12.62 0 12 7.52 11.38 11.38 7.52 12 0Z" />
-          </svg>
-        ))}
-      </div>
-      <div className="splash-inner">
-        <div className="logo-hit">
-          <div className="splash-wordmark">BEFOREBEDTIME</div>
-        </div>
-        <div className="family">FAMILY</div>
-        <button className="start" type="button" onClick={onStart}>
-          <span>Click to start</span>
-        </button>
-        <div className="socials" aria-label="Social links">
-          {socialLinks.map((link) => (
-            <button className="social" key={link.label} type="button" aria-label={link.label} onClick={() => api.shell.openExternal(link.href)}>
-              {link.icon}
-            </button>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function AuthScreen({
+export function Socials({
   api,
-  onLogin,
-  isEntering
+  className = "social-links",
 }: {
   api: LauncherApi;
-  onLogin: (profile: SafeMinecraftProfile) => void;
-  isEntering: boolean;
+  className?: string;
 }) {
-  const [accepted, setAccepted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function login() {
-    if (!accepted || loading) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await api.auth.loginMicrosoft();
-      if (!result.ok) {
-        setError(result.error.message);
-        return;
-      }
-      onLogin(result.value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
-    <section className={`screen auth ${isEntering ? 'route-enter' : ''}`}>
-      <svg className="auth-waves" viewBox="0 0 1200 700" preserveAspectRatio="none" aria-hidden="true">
-        <path className="wave wave-top" d="M-50 180 C 260 105, 455 130, 650 200 S 980 245, 1250 130" />
-        <path className="wave wave-bottom" d="M-50 520 C 240 465, 405 520, 620 470 S 960 430, 1250 510" />
-      </svg>
-      <div className="auth-inner">
-        <button className="auth-button" type="button" disabled={!accepted || loading} onClick={login}>
-          <MicrosoftMark />
-          <span className="auth-arrow" aria-hidden="true">{'->'}</span>
-          <span className="auth-text">{loading ? 'Logging in' : 'Login to Microsoft'}</span>
-        </button>
-        <label className="terms">
-          <input
-            className="terms-input"
-            type="checkbox"
-            checked={accepted}
-            onChange={(event) => setAccepted(event.target.checked)}
-            aria-label="Accept the Terms of Service and Privacy Policy"
-          />
-          <span className="terms-box" aria-hidden="true">
-            <svg viewBox="0 0 16 16">
-              <path d="M3.2 8.4 6.5 11.6 12.9 4.7" />
-            </svg>
-          </span>
-          <span>
-            I accept the{' '}
-            <button type="button" className="link-button" onClick={() => api.shell.openExternal('https://beforebedtime.net/launcher/terms')}>
-              Terms of Service
-            </button>{' '}
-            and{' '}
-            <button type="button" className="link-button" onClick={() => api.shell.openExternal('https://beforebedtime.net/launcher/privacy')}>
-              Privacy Policy
-            </button>
-          </span>
-        </label>
-        {error ? <div className="auth-error">{error}</div> : null}
-      </div>
-    </section>
+    <nav className={className} aria-label="โซเชียล BeforeBedtime">
+      {socialLinks.map((link) => (
+        <a
+          key={link.name}
+          href={link.url}
+          onClick={(event) => {
+            event.preventDefault();
+            void api.shell.openExternal(link.url);
+          }}
+          aria-label={link.label}
+        >
+          <Icon name={link.name} />
+          <span>{link.label}</span>
+        </a>
+      ))}
+    </nav>
   );
 }
 
-function SettingsPanel({
-  api,
-  profile,
-  settings,
-  setSettings,
-  onLogout
-}: {
-  api: LauncherApi;
-  profile: SafeMinecraftProfile | null;
-  settings: LauncherSettings;
-  setSettings: (settings: LauncherSettings) => void;
-  onLogout: () => void;
-}) {
-  const account = profile || { id: 'Not connected', name: 'Minecraft Name', avatarInitial: 'B', provider: 'microsoft' as const };
-  const skinUrl = getMinecraftSkinUrl(profile);
-  const [skinFailed, setSkinFailed] = useState(false);
-  const [saveState, setSaveState] = useState<SaveState>('idle');
-  const [saveError, setSaveError] = useState('');
-  const [resolutionOpen, setResolutionOpen] = useState(false);
-  const resolutionPickerRef = useRef<HTMLDivElement>(null);
-  const showSkin = Boolean(skinUrl && !skinFailed);
-  const resolutionValue = getResolutionValue(settings.width, settings.height);
-  const hasPresetResolution = resolutionPresets.some((preset) => getResolutionValue(preset.width, preset.height) === resolutionValue);
-  const resolutionOptions = [
-    ...(!hasPresetResolution ? [{ label: `${settings.width} x ${settings.height} Current`, value: resolutionValue }] : []),
-    ...resolutionPresets.map((preset) => ({
-      label: preset.label,
-      value: getResolutionValue(preset.width, preset.height)
-    }))
-  ];
-  const resolutionLabel = resolutionOptions.find((option) => option.value === resolutionValue)?.label || `${settings.width} x ${settings.height}`;
-
-  useEffect(() => {
-    setSkinFailed(false);
-  }, [skinUrl]);
-
-  useEffect(() => {
-    if (!resolutionOpen) return undefined;
-
-    function closeOnOutsidePointer(event: PointerEvent) {
-      if (resolutionPickerRef.current?.contains(event.target as Node)) return;
-      setResolutionOpen(false);
-    }
-
-    document.addEventListener('pointerdown', closeOnOutsidePointer, true);
-    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true);
-  }, [resolutionOpen]);
-
-  async function save() {
-    setSaveState('saving');
-    setSaveError('');
-    try {
-      const savedSettings = await api.settings.save(settings);
-      await api.window?.applyDisplaySettings?.({
-        width: savedSettings.width,
-        height: savedSettings.height,
-        fullscreen: savedSettings.fullscreen
-      });
-      setSettings(savedSettings);
-      setSaveState('saved');
-      window.setTimeout(() => setSaveState('idle'), 1800);
-    } catch (error) {
-      setSaveError(operationError(error, 'Save failed'));
-      setSaveState('failed');
-    }
-  }
-
-  async function logout() {
-    const result = await api.auth.logout();
-    if (result.ok) onLogout();
-  }
-
-  function updateFullscreen(fullscreen: boolean) {
-    setSettings({ ...settings, fullscreen });
-  }
-
-  async function browseAppDirectory() {
-    const selectedPath = await api.settings.selectAppDirectory(settings.appDirectory);
-    if (!selectedPath) return;
-    setSettings({ ...settings, appDirectory: selectedPath });
-  }
-
-  function updateResolution(value: string) {
-    const [width, height] = value.split('x').map((part) => Number(part));
-    if (!Number.isFinite(width) || !Number.isFinite(height)) return;
-    setSettings({ ...settings, width, height });
-  }
-
-  function selectResolution(value: string) {
-    updateResolution(value);
-    setResolutionOpen(false);
-  }
-
-  return (
-    <section className="settings-panel">
-      <div className="settings-layout">
-        <section className="settings-card account-card">
-          <div className="settings-label">Account</div>
-          <div className="account-row">
-            <div className={`minecraft-avatar ${showSkin ? 'has-skin' : ''}`}>
-              {showSkin && skinUrl ? (
-                <img src={skinUrl} alt={`${account.name} Minecraft skin`} onError={() => setSkinFailed(true)} />
-              ) : (
-                <span>{account.avatarInitial}</span>
-              )}
-            </div>
-            <div>
-              <div className="field-caption">Minecraft Name</div>
-              <div className="minecraft-name">{account.name}</div>
-              <div className="minecraft-uuid">{account.id}</div>
-            </div>
-          </div>
-          <div className="account-meta">
-            <span className="status-dot" aria-hidden="true" />
-            Microsoft Connected
-          </div>
-        </section>
-        <section className="settings-card directory-card">
-          <div className="settings-label">Game &amp; Modpack Folder</div>
-          <div className="directory-control">
-            <input
-              className="settings-input directory-input"
-              aria-label="Game & Modpack Folder"
-              value={settings.appDirectory}
-              readOnly
-            />
-            <button className="browse-button" type="button" onClick={browseAppDirectory} disabled={saveState === 'saving'}>Browse</button>
-          </div>
-          <p className="field-caption">เลือกที่เก็บ Modpack, โลก และ Java กด Save เพื่อคัดลอกข้อมูลไปที่ใหม่ โดยเก็บต้นฉบับไว้</p>
-        </section>
-        <section className="settings-card display-card">
-          <div className="settings-label">Resolution</div>
-          <div className="resolution-row">
-            <div className="resolution-picker" ref={resolutionPickerRef}>
-              <button
-                className="settings-input resolution-trigger"
-                type="button"
-                role="combobox"
-                aria-label="Resolution"
-                aria-expanded={resolutionOpen}
-                aria-controls="resolution-options"
-                aria-haspopup="listbox"
-                onClick={() => setResolutionOpen((open) => !open)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') setResolutionOpen(false);
-                }}
-              >
-                <span>{resolutionLabel}</span>
-                <span className={`resolution-chevron ${resolutionOpen ? 'open' : ''}`} aria-hidden="true" />
-              </button>
-              {resolutionOpen ? (
-                <div className="resolution-menu" id="resolution-options" role="listbox" aria-label="Resolution options">
-                  {resolutionOptions.map((option) => (
-                    <button
-                      className={`resolution-option ${option.value === resolutionValue ? 'selected' : ''}`}
-                      key={option.value}
-                      type="button"
-                      role="option"
-                      aria-selected={option.value === resolutionValue}
-                      onClick={() => selectResolution(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <label className="fullscreen-control">
-              <span>Fullscreen</span>
-              <input type="checkbox" checked={settings.fullscreen} onChange={(event) => updateFullscreen(event.target.checked)} />
-            </label>
-          </div>
-        </section>
-        <section className="settings-card memory-card">
-          <div className="memory-head">
-            <span className="settings-label">Memory</span>
-            <span>{settings.memoryMb} MB</span>
-          </div>
-          <input
-            className="memory-range"
-            type="range"
-            min={1024}
-            max={32601}
-            step={512}
-            value={settings.memoryMb}
-            onChange={(event) => setSettings({ ...settings, memoryMb: Number(event.target.value) })}
-          />
-        </section>
-        <section className="settings-card links-card">
-          <div className="settings-label">Links</div>
-          <div className="support-social-list">
-            {socialLinks.map((link) => (
-              <button key={link.label} className="support-social" type="button" onClick={() => api.shell.openExternal(link.href)}>
-                {link.icon}
-                <span>{link.label}</span>
-              </button>
-            ))}
-          </div>
-          <button className="logout-button" type="button" onClick={logout}>
-            <span aria-hidden="true">↩</span>
-            Logout
-          </button>
-        </section>
-        <div className="settings-save-row">
-          <span className={`save-status ${saveState === 'failed' ? 'failed' : ''}`} role="status">
-            {saveState === 'saved' ? 'Saved' : saveState === 'failed' ? saveError : saveState === 'saving' ? 'กำลังบันทึกและเตรียมโฟลเดอร์เกม…' : ''}
-          </span>
-          <button className="save-button" type="button" onClick={save} disabled={saveState === 'saving'}>
-            {saveState === 'saving' ? 'Saving' : 'Save'}
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MainShell({
-  api,
-  profile,
-  onLogout,
-  isEntering,
-  manifest,
-  settings,
-  setSettings
-}: {
-  api: LauncherApi;
-  manifest: LauncherManifest;
-  settings: LauncherSettings;
-  setSettings: React.Dispatch<React.SetStateAction<LauncherSettings>>;
-  profile: SafeMinecraftProfile | null;
-  onLogout: () => void;
-  isEntering: boolean;
-}) {
-  const [activeTab, setActiveTab] = useState<Tab>('project');
-  const [updateState, setUpdateState] = useState<LauncherUpdateState>({ status: 'idle' });
-  useEffect(() => {
-    let active = true;
-    void api.updater.getState().then((state) => {
-      if (active) setUpdateState(state);
-    }).catch(() => undefined);
-    const dispose = api.updater.onState(setUpdateState);
-    return () => {
-      active = false;
-      dispose();
-    };
-  }, [api]);
-
-  async function runUpdateAction() {
-    if (updateState.status === 'downloaded') {
-      await api.updater.quitAndInstall();
-    }
-  }
-
-  function selectProject(projectId: ProjectId) {
-    setSettings((current) => ({ ...current, selectedProject: projectId }));
-    void api.settings.save({ selectedProject: projectId }).catch(() => undefined);
-  }
-
-  const selectedProject = resolveSelectedProject(manifest, settings.selectedProject);
-
-  return (
-    <section className={`screen main ${isEntering ? 'route-enter' : ''}`}>
-      <div className="launcher-shell">
-        <LauncherHeader
-          activeTab={activeTab}
-          projects={manifest.projects}
-          project={selectedProject}
-          updateState={updateState}
-          onTabChange={setActiveTab}
-          onProjectSelect={selectProject}
-          onUpdateAction={runUpdateAction}
-        />
-        <main className="launcher-content">
-          {activeTab === 'project' ? (
-            <ProjectPage
-              key={`${selectedProject.id}:${manifest.generatedAt}`}
-              api={api}
-              project={selectedProject}
-            />
-          ) : null}
-          {activeTab === 'shop' ? <section className="shop-panel" aria-label="Shop" /> : null}
-          {activeTab === 'settings' ? (
-            <SettingsPanel
-              api={api}
-              profile={profile}
-              settings={settings}
-              setSettings={setSettings}
-              onLogout={onLogout}
-            />
-          ) : null}
-        </main>
-      </div>
-    </section>
-  );
+async function prepareArtwork() {
+  await Promise.all([
+    document.fonts?.load('700 80px "Barlow Condensed"'),
+    document.fonts?.load('400 28px "Inter Tight"'),
+    document.fonts?.load('400 14px Plex'),
+    document.fonts?.load('500 14px Plex'),
+    document.fonts?.ready,
+  ]);
+  const image = new Image();
+  image.src = resolveRendererAssetUrl("/assets/launcher/sainam-forest.png");
+  if (image.decode) await image.decode();
 }
 
 export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
-  const [screen, setScreen] = useState<Screen>('splash');
+  const [route, setRoute] = useState<Route>("start");
   const [profile, setProfile] = useState<SafeMinecraftProfile | null>(null);
-  const [transitionPhase, setTransitionPhase] = useState<TransitionPhase>('idle');
-  const transitionTimers = useRef<number[]>([]);
-  const memoApi = useMemo(() => api, [api]);
-  const restoreSession = useMemo(() => memoApi.auth.getState(), [memoApi]);
-  const [manifest, setManifest] = useState<LauncherManifest>(fallbackManifest);
-  const [settings, setSettings] = useState<LauncherSettings>(defaultLauncherSettings);
-  const [settingsReady, setSettingsReady] = useState(false);
-  const [manifestReady, setManifestReady] = useState(false);
+  const [settings, setSettings] = useState(initialSettings);
+  const [manifest, setManifest] = useState(fallbackManifest);
+  const [waiting, setWaiting] = useState(false);
+  const [bootError, setBootError] = useState("");
+  const [accepted, setAccepted] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [maximized, setMaximized] = useState(false);
+  const [backgroundPaused, setBackgroundPaused] = useState(document.hidden);
+  const authRevision = useRef(0),
+    navigationRevision = useRef(0);
+  const sessionProfile = useRef<SafeMinecraftProfile | null>(null);
+  const start = useRef<HTMLElement>(null),
+    login = useRef<HTMLElement>(null),
+    main = useRef<HTMLDivElement>(null),
+    entry = useRef<HTMLElement>(null),
+    footer = useRef<HTMLElement>(null);
+  const previousRoute = useRef<Route | null>(null),
+    motionRevision = useRef(0);
+  const artwork = useMemo(
+    () =>
+      prepareArtwork().then(
+        () => true,
+        () => false,
+      ),
+    [],
+  );
+  const restored = useMemo(() => api.auth.getState().catch(() => null), [api]);
+  const settingsLoaded = useMemo(() => api.settings.load(), [api]);
 
   useEffect(() => {
     let active = true;
-    // Read local selection immediately; the network must not hold it up.
-    void memoApi.settings.load().catch(() => defaultLauncherSettings).then((saved) => {
-      if (!active) return;
-      setSettings(saved);
-      setSettingsReady(true);
-    });
-    void memoApi.manifest.refresh().catch(() => fallbackManifest).then((next) => {
-      if (!active) return;
-      setManifest(next);
-      setManifestReady(true);
-    });
-    return () => { active = false; };
-  }, [memoApi]);
-
-  useEffect(() => {
-    if (!settingsReady || !manifestReady) return;
-    const selectedProject = resolveSelectedProject(manifest, settings.selectedProject);
-    if (selectedProject.id === settings.selectedProject) return;
-    setSettings((current) => ({ ...current, selectedProject: selectedProject.id }));
-    void memoApi.settings.save({ selectedProject: selectedProject.id }).catch(() => undefined);
-  }, [memoApi, manifest, manifestReady, settingsReady, settings.selectedProject]);
-
-  function clearTransitionTimers() {
-    transitionTimers.current.forEach((timer) => window.clearTimeout(timer));
-    transitionTimers.current = [];
-  }
-
-  function scheduleTransition(callback: () => void, delay: number) {
-    const timer = window.setTimeout(callback, delay);
-    transitionTimers.current.push(timer);
-  }
-
-  useEffect(() => {
-    void restoreSession.then((result) => {
-      if (result.ok && result.value.profile) setProfile(result.value.profile);
-    });
-  }, [restoreSession]);
-
-  useEffect(() => () => clearTransitionTimers(), []);
-
-  function startFromSplash() {
-    if (transitionPhase !== 'idle') return;
-    clearTransitionTimers();
-    setTransitionPhase('splash-exit');
-
-    const exitAnimation = new Promise<void>((resolve) => scheduleTransition(resolve, routeSwitchDelayMs));
-    void Promise.all([restoreSession, exitAnimation]).then(([result]) => {
-      const nextScreen: Screen = result.ok && result.value.profile ? 'main' : 'auth';
-      if (result.ok && result.value.profile) {
+    const authAtStart = authRevision.current;
+    void restored.then((result) => {
+      if (active && authRevision.current === authAtStart && result?.ok) {
+        sessionProfile.current = result.value.profile;
         setProfile(result.value.profile);
       }
-
-      setScreen(nextScreen);
-      setTransitionPhase(nextScreen === 'main' ? 'main-enter' : 'auth-enter');
-
-      scheduleTransition(() => {
-        setTransitionPhase('idle');
-      }, routeTransitionDurationMs - routeSwitchDelayMs);
     });
-  }
+    void settingsLoaded
+      .then((next) => {
+        if (active)
+          setSettings({
+            ...next,
+            selectedProject: "sainam",
+            starMotion: next.starMotion ?? true,
+          });
+      })
+      .catch((error) => {
+        if (active) setBootError(operationError(error, "อ่านการตั้งค่าไม่ได้"));
+      });
+    void api.manifest
+      .refresh()
+      .then((next) => {
+        if (active) setManifest(next);
+      })
+      .catch(() => undefined);
+    // Read physical memory once at startup; the settings drawer reads it again when opened.
+    void api.system?.getMemoryInfo();
+    const visibility = () => setBackgroundPaused(document.hidden);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      active = false;
+      authRevision.current++;
+      navigationRevision.current++;
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  }, [api, restored, settingsLoaded]);
 
-  function enterMain(nextProfile: SafeMinecraftProfile) {
-    clearTransitionTimers();
-    setProfile(nextProfile);
-    setScreen('main');
-    setTransitionPhase('main-enter');
-    scheduleTransition(() => setTransitionPhase('idle'), 360);
-  }
+  useLayoutEffect(() => {
+    const refs = {
+      start: start.current!,
+      login: login.current!,
+      main: main.current!,
+    };
+    const prev = previousRoute.current,
+      next = refs[route],
+      rev = ++motionRevision.current;
+    const old = prev ? refs[prev] : null;
+    const from = old
+      ?.querySelector<HTMLElement>(".entry-wordmark")
+      ?.getBoundingClientRect();
+    previousRoute.current = route;
+    document.title = `BeforeBedtime — ${route === "start" ? "Click to start" : route === "login" ? "Login Microsoft" : "Launcher"}`;
+    if (!prev) {
+      for (const key of ["start", "login", "main"] as Route[])
+        refs[key].hidden = key !== route;
+      return;
+    }
+    const brand = next.querySelector<HTMLElement>(".entry-wordmark");
+    const nextWasHidden = next.hidden;
+    const selector = ".welcome-family,.start-button,.start-switch-account,.welcome-signature,.login-content,.login-brand>p,.entry-back";
+    next.hidden = false;
+    next
+      .querySelectorAll<HTMLElement>(".entry-wordmark")
+      .forEach((el) => (el.style.visibility = ""));
+    const finish = (work: Promise<unknown>[]) =>
+      void Promise.all(work).then(() => {
+        if (motionRevision.current !== rev) return;
+        for (const key of ["start", "login", "main"] as Route[])
+          if (key !== route) refs[key].hidden = true;
+      });
+    if (route === "main") {
+      void move(entry.current!, { opacity: 0 }, 220);
+      void move(footer.current!, { opacity: 0 }, 220);
+      void move(
+        next,
+        { opacity: 1, transform: "none" },
+        320,
+        nextWasHidden ? { opacity: 0 } : undefined,
+      );
+      finish([
+        move(
+          next.querySelector(".sidebar")!,
+          { opacity: 1, transform: "none" },
+          680,
+          nextWasHidden ? { opacity: 0, transform: "translateX(-18px)" } : undefined,
+        ),
+        move(
+          next.querySelector(".workspace")!,
+          { opacity: 1, transform: "none" },
+          680,
+          nextWasHidden ? { opacity: 0, transform: "translateY(16px)" } : undefined,
+          nextWasHidden ? 70 : 0,
+        ),
+      ]);
+    } else if (prev === "main") {
+      next.querySelectorAll<HTMLElement>(selector).forEach(resetMotion);
+      if (brand) resetMotion(brand);
+      void move(refs.main, { opacity: 0 }, 220);
+      void move(entry.current!, { opacity: 1 }, 320);
+      void move(footer.current!, { opacity: 1 }, 320);
+      finish([
+        move(next, { opacity: 1, transform: "none" }, 480, {
+          opacity: 0,
+          transform: "translateY(12px)",
+        }),
+      ]);
+    } else {
+      // The incoming wordmark starts at the previous brand's currently painted bounds.
+      refs.start.querySelector<HTMLElement>(
+        ".entry-wordmark",
+      )!.style.visibility = "";
+      refs.login.querySelector<HTMLElement>(
+        ".entry-wordmark",
+      )!.style.visibility = "";
+      resetMotion(next);
+      resetMotion(brand!);
+      const to = brand!.getBoundingClientRect();
+      const oldBrand = old!.querySelector<HTMLElement>(".entry-wordmark")!;
+      oldBrand.style.visibility = "hidden";
+      brand!.style.transformOrigin = "0 0";
+      const jobs: Promise<unknown>[] = [];
+      if (from && to.width && to.height)
+        jobs.push(
+          move(brand!, { transform: "none", opacity: 1 }, 680, {
+            opacity: 1,
+            transform: `translate(${from.left - to.left}px,${from.top - to.top}px) scale(${from.width / to.width},${from.height / to.height})`,
+          }),
+        );
+      old!.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+        jobs.push(
+          move(el, { opacity: 0, transform: "translateY(-12px)" }, 200),
+        );
+      });
+      next.querySelectorAll<HTMLElement>(selector).forEach((el, i) => {
+        jobs.push(
+          move(
+            el,
+            { opacity: 1, transform: "none" },
+            480,
+            nextWasHidden ? { opacity: 0, transform: "translateY(12px)" } : undefined,
+            nextWasHidden ? 100 + i * 35 : 0,
+          ),
+        );
+      });
+      finish(jobs);
+    }
+  }, [route]);
 
-  let content;
-  if (screen === 'splash') {
-    content = (
-      <Splash
-        api={memoApi}
-        isExiting={transitionPhase === 'splash-exit'}
-        onStart={startFromSplash}
-      />
-    );
-  } else if (screen === 'auth') {
-    content = (
-      <AuthScreen
-        api={memoApi}
-        isEntering={transitionPhase === 'auth-enter'}
-        onLogin={enterMain}
-      />
-    );
-  } else {
-    content = !settingsReady ? (
-      <section className="screen main"><div role="status">Loading…</div></section>
-    ) : (
-      <MainShell
-        manifest={manifest}
-        settings={settings}
-        setSettings={setSettings}
-        api={memoApi}
-        profile={profile}
-        isEntering={transitionPhase === 'main-enter'}
-        onLogout={() => {
-          clearTransitionTimers();
-          setProfile(null);
-          setScreen('auth');
-          setTransitionPhase('idle');
-        }}
-      />
-    );
+  async function navigate(next: Route) {
+    const id = ++navigationRevision.current;
+    if (next !== "start") {
+      setWaiting(true);
+      setBootError("");
+      try {
+        if (next === "main") await settingsLoaded;
+        if (!(await artwork))
+          throw new Error(
+            "โหลดภาพหรือฟอนต์ไม่สำเร็จ ลองเปิด Launcher อีกครั้ง",
+          );
+      } catch (error) {
+        if (navigationRevision.current === id) {
+          setBootError(operationError(error, "เตรียม Launcher ไม่สำเร็จ กรุณาลองเปิดใหม่"));
+          setWaiting(false);
+        }
+        return;
+      }
+    }
+    if (navigationRevision.current !== id) return;
+    setWaiting(false);
+    setRoute(next);
   }
-
+  async function begin() {
+    if (waiting) return;
+    setWaiting(true);
+    await restored;
+    setWaiting(false);
+    void navigate(sessionProfile.current ? "main" : "login");
+  }
+  async function cancelLogin(goBack = false) {
+    authRevision.current++;
+    navigationRevision.current++;
+    setWaiting(false);
+    setLoggingIn(false);
+    setLoginError("");
+    if (goBack) setRoute("start");
+    const result = await api.auth.cancelLogin();
+    if (!result.ok && !goBack) setLoginError(result.error.message);
+  }
+  async function signIn() {
+    if (!accepted || loggingIn) return;
+    const id = ++authRevision.current;
+    setLoggingIn(true);
+    setLoginError("");
+    try {
+      const result = await api.auth.loginMicrosoft();
+      if (authRevision.current !== id) return;
+      if (!result.ok) {
+        if (result.error.code !== "AUTH_CANCELLED")
+          setLoginError(result.error.message);
+        return;
+      }
+      sessionProfile.current = result.value;
+      setProfile(result.value);
+      await navigate("main");
+    } catch (error) {
+      if (authRevision.current === id) setLoginError(operationError(error));
+    } finally {
+      if (authRevision.current === id) setLoggingIn(false);
+    }
+  }
+  async function logout() {
+    authRevision.current++;
+    navigationRevision.current++;
+    const result = await api.auth.logout();
+    if (!result.ok) throw new Error(result.error.message);
+    sessionProfile.current = null;
+    setProfile(null);
+    setAccepted(false);
+    setLoginError("");
+    setRoute("login");
+  }
+  async function toggleStars() {
+    const next = !settings.starMotion;
+    setSettings((current) => ({ ...current, starMotion: next }));
+    try {
+      await api.settings.save({ starMotion: next });
+    } catch (error) {
+      setBootError(operationError(error));
+    }
+  }
   return (
-    <>
-      <WindowControls api={memoApi} />
-      {content}
-    </>
+    <div
+      className={`entry-page ${!settings.starMotion || backgroundPaused ? "entry-background-paused" : ""}`}
+      data-entry-route={route}
+      onDragStart={(event) => {
+        if (
+          !(event.target instanceof HTMLElement) ||
+          !event.target.closest('input,textarea,[contenteditable="true"]')
+        )
+          event.preventDefault();
+      }}
+    >
+      <IconDefinitions />
+      <div className="entry-shell">
+        <Starfield />
+        <header className="titlebar">
+          <span>
+            BEFOREBEDTIME <span className="titlebar-divider">/</span> LAUNCHER
+          </span>
+          <div className="window-controls" aria-label="Window controls">
+            <button
+              aria-label="Minimize"
+              onClick={() => void api.window?.minimize()}
+            >
+              <svg viewBox="0 0 16 16">
+                <path d="M4 8h8" />
+              </svg>
+            </button>
+            <button
+              aria-label={maximized ? "Restore" : "Maximize"}
+              onClick={() =>
+                void api.window?.toggleMaximize().then(setMaximized)
+              }
+            >
+              <svg viewBox="0 0 16 16">
+                <rect x="4" y="4" width="8" height="8" />
+              </svg>
+            </button>
+            <button aria-label="Close" onClick={() => void api.window?.close()}>
+              <svg viewBox="0 0 16 16">
+                <path d="m4 4 8 8m-8 0 8-8" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <main
+          className="entry-main"
+          ref={entry}
+          inert={route === "main"}
+          aria-hidden={route === "main"}
+        >
+          <section
+            className="entry-screen welcome-screen"
+            ref={start}
+            inert={route !== "start"}
+            aria-hidden={route !== "start"}
+          >
+            <div className="welcome-content">
+              <div className="entry-wordmark">
+                <h1>BEFOREBEDTIME</h1>
+              </div>
+              <p className="welcome-family">FAMILY</p>
+              <button
+                className="start-button"
+                onClick={() => void begin()}
+                disabled={waiting}
+              >
+                <span>{waiting ? "กำลังเตรียม…" : "Click to start"}</span>
+              </button>
+              {profile && (
+                <button
+                  className="start-switch-account"
+                  onClick={() => void navigate("login")}
+                >
+                  เข้าสู่ระบบด้วยบัญชีอื่น
+                </button>
+              )}
+            </div>
+            <div className="welcome-signature" aria-hidden="true">
+              <span />
+              <Icon name="star" />
+              <span />
+            </div>
+          </section>
+          <section
+            className="entry-screen login-screen"
+            ref={login}
+            inert={route !== "login"}
+            aria-hidden={route !== "login"}
+          >
+            <button
+              className="entry-back"
+              onClick={() => void cancelLogin(true)}
+            >
+              <Icon name="arrow" />
+              กลับหน้าเริ่มต้น
+            </button>
+            <div className="login-layout">
+              <div className="login-brand">
+                <div className="entry-wordmark">
+                  <div className="login-wordmark">BEFOREBEDTIME</div>
+                </div>
+                <p>
+                  โลกอีกใบ กำลังรออยู่<span>แล้วเจอกันก่อนเข้านอน</span>
+                </p>
+              </div>
+              <div className="login-content">
+                <h1>เข้ามาเล่นด้วยกัน</h1>
+                <p className="login-description">
+                  เข้าสู่ระบบด้วยบัญชี Microsoft
+                  <br />
+                  ที่ใช้เล่น Minecraft Java Edition
+                </p>
+                <button
+                  className={`microsoft-login ${loggingIn ? "is-busy" : ""}`}
+                  disabled={!accepted || loggingIn || waiting}
+                  onClick={() => void signIn()}
+                >
+                  <Icon name="microsoft" />
+                  <span>
+                    {loggingIn ? "กำลังเข้าสู่ระบบ…" : "Login with Microsoft"}
+                  </span>
+                  <Icon className="login-arrow" name="arrow" />
+                </button>
+                <div className="login-consent">
+                  <input
+                    id="terms"
+                    aria-label="ยอมรับข้อกำหนดและนโยบายความเป็นส่วนตัว"
+                    type="checkbox"
+                    checked={accepted}
+                    disabled={loggingIn}
+                    onChange={(event) => setAccepted(event.target.checked)}
+                  />
+                  <div>
+                    <label htmlFor="terms">ยอมรับ </label>
+                    <a
+                      href="https://beforebedtime.net/launcher/terms"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void api.shell.openExternal(event.currentTarget.href);
+                      }}
+                    >
+                      ข้อกำหนดการใช้งาน
+                    </a>
+                    <label htmlFor="terms"> และ</label>
+                    <br />
+                    <a
+                      href="https://beforebedtime.net/launcher/privacy"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void api.shell.openExternal(event.currentTarget.href);
+                      }}
+                    >
+                      นโยบายความเป็นส่วนตัว
+                    </a>
+                    <label htmlFor="terms"> เพื่อเข้าสู่ระบบ</label>
+                  </div>
+                </div>
+                <div className="login-status-slot">
+                  {(loggingIn || loginError || waiting) && (
+                    <div className="login-feedback" role="status">
+                      <span
+                        className={`login-feedback-icon ${loggingIn ? "is-loading" : ""}`}
+                      >
+                        {!loggingIn && <Icon name="star" />}
+                      </span>
+                      <div>
+                        <strong>
+                          {loginError
+                            ? "เข้าสู่ระบบไม่สำเร็จ"
+                            : waiting
+                              ? "กำลังเตรียมการเดินทาง"
+                              : "รอการเข้าสู่ระบบ Microsoft"}
+                        </strong>
+                        <p>
+                          {loginError || "ดำเนินการต่อในหน้าต่างที่เปิดขึ้น"}
+                        </p>
+                        {loggingIn && (
+                          <button
+                            className="login-cancel"
+                            onClick={() => void cancelLogin()}
+                          >
+                            ยกเลิก
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+        <footer
+          className="entry-footer"
+          ref={footer}
+          inert={route === "main"}
+          aria-hidden={route === "main"}
+        >
+          <div className="entry-footer-meta">
+            <span className="entry-version">Launcher {version}</span>
+            <button
+              className="entry-motion-toggle"
+              onClick={() => void toggleStars()}
+              aria-pressed={settings.starMotion}
+            >
+              <Icon name="star" />
+              <span>{settings.starMotion ? "หยุดดาว" : "เปิดดาว"}</span>
+            </button>
+          </div>
+          <Socials api={api} className="entry-socials" />
+          <span className="entry-footer-spacer" />
+        </footer>
+        <div
+          ref={main}
+          className="launcher embedded-main"
+          inert={route !== "main"}
+          aria-hidden={route !== "main"}
+        >
+          <MainView
+            api={api}
+            active={route === "main"}
+            profile={profile}
+            settings={settings}
+            setSettings={setSettings}
+            manifest={manifest}
+            onLogout={logout}
+            onToggleStars={toggleStars}
+          />
+        </div>
+        {bootError && (
+          <div className="toast" role="alert">
+            {bootError}
+            <button onClick={() => setBootError("")} aria-label="ปิดข้อความ">
+              <Icon name="close" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

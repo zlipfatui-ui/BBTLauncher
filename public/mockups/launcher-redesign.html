@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101318">
+  <title>BeforeBedtime — Starlight Launcher</title>
+  <link rel="icon" href="../assets/images/logos/BBT.ico">
+  <link rel="stylesheet" href="./launcher-redesign/style.css">
+  <link rel="stylesheet" href="./launcher-redesign/page-transition.css">
+  <script src="./launcher-redesign/page-transition.js"></script>
+  <script defer src="./launcher-redesign/app.js"></script>
+  <script defer src="./launcher-redesign/screenshots.js"></script>
+</head>
+<body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="star" viewBox="0 0 24 24"><path d="M12 1.5 14.8 9.2 22.5 12l-7.7 2.8-2.8 7.7-2.8-7.7L1.5 12l7.7-2.8Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="world" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c5 5 5 12 0 17-5-5-5-12 0-17Z"/></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7V5h6l2 3h10v11H3V7Z"/></symbol>
+    <symbol id="settings" viewBox="0 0 24 24"><path d="m9.5 3-.6 2.3-2 .9-2.2-.6L2.8 9l1.7 1.6v2.8L2.8 15l1.9 3.4 2.2-.6 2 .9.6 2.3h4.9l.7-2.3 2-.9 2.2.6 1.9-3.4-1.7-1.6v-2.8L21.2 9l-1.9-3.4-2.2.6-2-.9-.7-2.3Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="external" viewBox="0 0 24 24"><path d="M14 4h6v6m0-6L10 14M10 4H4v16h16v-6"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="restart" viewBox="0 0 24 24"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2.3 5.7"/></symbol>
+    <symbol id="play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="bag" viewBox="0 0 24 24"><path d="M4 8h16l1 13H3L4 8Zm4 0V6a4 4 0 0 1 8 0v2"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></symbol>
+    <symbol id="photo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></symbol>
+    <symbol id="moon" viewBox="0 0 24 24"><path d="M20 14A8.5 8.5 0 0 1 10 3a9 9 0 1 0 10 11Z"/></symbol>
+    <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m4 6v2"/></symbol>
+    <symbol id="youtube" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M21.58 7.19a2.72 2.72 0 0 0-1.91-1.93C17.98 4.8 12 4.8 12 4.8s-5.98 0-7.67.46a2.72 2.72 0 0 0-1.91 1.93A28.44 28.44 0 0 0 2 12a28.44 28.44 0 0 0 .42 4.81 2.72 2.72 0 0 0 1.91 1.93c1.69.46 7.67.46 7.67.46s5.98 0 7.67-.46a2.72 2.72 0 0 0 1.91-1.93A28.44 28.44 0 0 0 22 12a28.44 28.44 0 0 0-.42-4.81ZM10 15.28V8.72L15.5 12 10 15.28Z"/></symbol>
+    <symbol id="tiktok" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M16.6 3c.28 2.36 1.6 3.76 3.9 3.92v3.02a6.85 6.85 0 0 1-3.82-1.16v5.76c0 3.03-2.1 5.46-5.38 5.46-3.1 0-5.3-2.1-5.3-4.92 0-3.05 2.44-5.16 5.84-4.88v3.1c-1.55-.25-2.62.45-2.62 1.68 0 1.05.86 1.8 2.02 1.8 1.3 0 2.15-.82 2.15-2.48V3h3.21Z"/></symbol>
+    <symbol id="discord" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M19.1 5.15A16.2 16.2 0 0 0 15.05 4l-.2.38c1.43.34 2.1.82 2.1.82a13.3 13.3 0 0 0-9.9 0s.67-.48 2.1-.82L8.95 4A16.2 16.2 0 0 0 4.9 5.15C2.33 9 1.64 12.74 2 16.43A16.42 16.42 0 0 0 6.98 19s.6-.72 1.08-1.35a6.97 6.97 0 0 1-1.7-.82l.4-.3c3.28 1.5 6.84 1.5 10.08 0l.4.3c-.55.36-1.12.64-1.7.82.48.63 1.08 1.35 1.08 1.35A16.42 16.42 0 0 0 22 16.43c.42-4.28-.7-7.98-2.9-11.28ZM8.85 14.2c-.98 0-1.79-.9-1.79-2s.79-2 1.79-2c.99 0 1.8.9 1.79 2 0 1.1-.8 2-1.79 2Zm6.3 0c-.98 0-1.79-.9-1.79-2s.79-2 1.79-2c.99 0 1.8.9 1.79 2 0 1.1-.8 2-1.79 2Z"/></symbol>
+  </defs></svg>
+
+  <div class="launcher">
+    <div class="stars" id="stars" aria-hidden="true"></div>
+    <header class="titlebar">
+      <span>BEFOREBEDTIME <span class="titlebar-divider">/</span> LAUNCHER</span>
+      <span class="preview-label">ต้นแบบ UI · จำลองการใช้งาน</span>
+      <div class="window-controls" aria-label="ตัวอย่างปุ่มหน้าต่าง">
+        <button data-window="minimize" aria-label="จำลองย่อหน้าต่าง"><svg viewBox="0 0 16 16"><path d="M4 8h8"/></svg></button>
+        <button data-window="maximize" aria-label="ขยายพื้นที่พรีวิว"><svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg></button>
+        <button data-window="close" aria-label="จำลองปิดหน้าต่าง"><svg viewBox="0 0 16 16"><path d="m4 4 8 8m-8 0 8-8"/></svg></button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="BeforeBedtime หน้าหลัก">
+        <span class="brand-mark"><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span>
+        <span>Before<span class="brand-second">Bedtime<span class="brand-period">.</span></span></span>
+      </a>
+      <div class="library-label">โลกของเรา <span>2</span></div>
+      <nav class="projects" aria-label="เลือกโปรเจกต์">
+        <button class="project-button selected" data-project="sainam" aria-pressed="true" aria-label="SaiNam Season Test">
+          <img class="sainam-thumb" src="../assets/images/logos/SAINAM.png" alt="">
+          <span><strong>SaiNam</strong><small>Season Test</small></span><span class="project-dot"></span>
+        </button>
+        <button class="project-button project-locked" data-project="northvale" aria-pressed="false" aria-label="Northvale — ยังไม่เปิดให้เล่น" title="Northvale — ยังไม่เปิดให้เล่น" disabled>
+          <span class="project-monogram" aria-hidden="true">N</span>
+          <span class="project-copy"><strong>Northvale</strong><small>ยังไม่เปิดให้เล่น</small></span><svg class="project-lock" aria-hidden="true"><use href="#lock"/></svg>
+        </button>
+      </nav>
+      <div class="sidebar-rule"></div>
+      <nav class="utility-nav" aria-label="เครื่องมือ">
+        <button data-panel="content" aria-label="จัดการคอนเทนต์"><svg><use href="#folder"/></svg><span>จัดการคอนเทนต์</span></button>
+        <button data-open-screenshots aria-label="รูปที่ถ่ายไว้ใน SAINAM"><svg><use href="#photo"/></svg><span>รูปที่ถ่ายไว้</span></button>
+        <button data-panel="shop" aria-label="ร้านค้า เร็ว ๆ นี้"><svg><use href="#bag"/></svg><span>ร้านค้า</span><small>เร็ว ๆ นี้</small></button>
+        <button data-panel="settings" aria-label="ตั้งค่า Launcher"><svg><use href="#settings"/></svg><span>ตั้งค่า Launcher</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <p class="social-caption">เจอกันก่อนเข้านอน</p>
+        <nav class="social-links" aria-label="โซเชียล BeforeBedtime">
+          <a href="https://discord.gg/V5KaAfDpzw" target="_blank" rel="noopener noreferrer" aria-label="Discord ของ BeforeBedtime (แท็บใหม่)" title="Discord"><svg aria-hidden="true"><use href="#discord"/></svg><span>Discord</span></a>
+          <a href="https://www.tiktok.com/@beforebedtimeproject" target="_blank" rel="noopener noreferrer" aria-label="TikTok ของ BeforeBedtime (แท็บใหม่)" title="TikTok"><svg aria-hidden="true"><use href="#tiktok"/></svg><span>TikTok</span></a>
+          <a href="https://www.youtube.com/@BeforeBedtimeProject" target="_blank" rel="noopener noreferrer" aria-label="YouTube ของ BeforeBedtime (แท็บใหม่)" title="YouTube"><svg aria-hidden="true"><use href="#youtube"/></svg><span>YouTube</span></a>
+        </nav>
+        <button class="account" data-panel="account" aria-label="บัญชีผู้เล่น"><span class="avatar">Z</span><span><strong id="account-name">Zlevyn</strong><small id="account-subtitle">บัญชีตัวอย่าง</small></span><svg><use href="#chevron"/></svg></button>
+        <div class="version"><span>Launcher 0.3.7</span><span class="version-star"><svg><use href="#star"/></svg></span></div>
+      </div>
+    </aside>
+
+    <main class="workspace" id="workspace">
+      <header class="page-heading"><div><h1>คืนนี้ ไปโลกไหนดี<span>?</span></h1><p>อีกหนึ่งเรื่องราว ก่อนถึงเวลาเข้านอน</p></div><div class="heading-actions"><button class="launcher-update-button" id="launcher-update-button" aria-describedby="launcher-update-status"><svg aria-hidden="true"><use href="#restart"/></svg><span><strong id="launcher-update-label">Restart to update</strong><small id="launcher-update-status">อัปเดต Launcher พร้อมแล้ว</small></span></button><button class="ambience-button" id="stars-toggle" aria-pressed="true" aria-label="เปิดปิดดาวเคลื่อนไหว"><svg><use href="#star"/></svg><span>Starlight</span></button></div></header>
+      <section class="world-feature" aria-label="โปรเจกต์ที่เลือก">
+        <img id="hero-image" class="hero-image" src="./launcher-redesign/sainam-forest.png" alt="ภาพวาดป่าและสายน้ำของ SaiNam">
+        <div class="hero-shade"></div>
+        <div class="hero-top"><span class="season" id="season">SEASON TEST</span><span class="edition">MINECRAFT JAVA EDITION</span></div>
+        <div class="hero-copy"><div class="world-symbol"><svg><use href="#star"/></svg><span></span></div><h2 id="world-title">SAINAM</h2><p class="world-tagline" id="world-tagline">สาย-น้ำ</p><p class="world-description" id="world-description">ใบไม้ที่ร่วงโรย แสงแดดอันอบอุ่น และค่ายฤดูใบไม้ร่วง<br>ที่ไม่มีใคร…กลับออกมาเหมือนเดิม</p><button class="text-button" data-panel="details">รู้จักโลกใบนี้ <svg><use href="#arrow"/></svg></button></div>
+        <span class="hero-signature">A BEFOREBEDTIME STORY</span>
+        <div class="corner-star" aria-hidden="true"><svg><use href="#star"/></svg></div>
+      </section>
+      <section class="world-info" aria-label="ข้อมูลโปรเจกต์"><div class="world-info-title"><svg><use href="#world"/></svg><span id="world-info-title">SaiNam <small>Season Test</small></span></div><button class="screenshot-entry" data-open-screenshots aria-label="เปิดแกลเลอรีรูป SAINAM"><img id="screenshot-entry-image" src="./launcher-redesign/sainam-forest.png" alt=""><span>รูปที่ถ่ายไว้<small id="screenshots-summary">ตัวอย่างพรีวิว</small></span><svg aria-hidden="true"><use href="#chevron"/></svg></button><div class="world-spec"><span>Minecraft</span><strong>1.20.1</strong></div><div class="world-spec"><span>Forge</span><strong>47.4.20</strong></div><button class="info-settings" data-panel="settings" aria-label="ตั้งค่าการเล่น"><svg><use href="#settings"/></svg></button></section>
+      <footer class="launch-dock">
+        <div class="launch-details"><span class="install-state" id="install-state"><span class="status-dot"></span>พร้อมออกเดินทาง</span><p id="launch-meta">ไฟล์เกมเป็นเวอร์ชันล่าสุด <span>·</span> RAM 8192 MB</p><div class="progress-track" id="progress-track" hidden><progress id="launch-progress" max="100" value="0" aria-label="ความคืบหน้าการจำลอง"></progress></div></div>
+        <div class="launch-actions"><button class="manage-button" data-panel="content" aria-label="จัดการม็อดและคอนเทนต์"><svg><use href="#folder"/></svg><span>จัดการ</span></button><button class="launch-button" id="launch-button"><svg><use href="#play"/></svg><span><strong id="launch-label">เข้าเกม</strong><small id="launch-subtitle">LET’S GET LOST</small></span><svg class="launch-spark"><use href="#star"/></svg></button></div>
+      </footer>
+    </main>
+
+    <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+    <section class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" tabindex="-1" hidden>
+      <header class="drawer-header"><div><h2 id="drawer-title">ตั้งค่า Launcher</h2><p id="drawer-subtitle"></p></div><button id="drawer-close" class="icon-button" aria-label="ปิดแผง"><svg><use href="#close"/></svg></button></header><div class="drawer-body" id="drawer-body"></div>
+    </section>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <span class="sr-only" id="launch-announcement" role="status" aria-live="polite"></span>
+    <span class="sr-only" id="launcher-update-announcement" role="status" aria-live="polite"></span>
+  </div>
+  <dialog class="screenshot-viewer" id="screenshot-viewer" aria-labelledby="screenshot-viewer-title" aria-describedby="screenshot-preview-note">
+    <header class="screenshot-viewer-header"><div><h2 id="screenshot-viewer-title">รูปที่ถ่ายไว้</h2><p>SAINAM <span aria-hidden="true">/</span> <span id="screenshot-count"></span></p></div><button class="icon-button" id="screenshot-close" aria-label="ปิดพรีวิวรูป" autofocus><svg aria-hidden="true"><use href="#close"/></svg></button></header>
+    <div class="screenshot-stage"><button class="screenshot-arrow previous" id="screenshot-previous" aria-label="รูปก่อนหน้า"><svg aria-hidden="true"><use href="#chevron"/></svg></button><img id="screenshot-full" alt=""><p id="screenshot-load-error" role="alert" hidden>เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น</p><button class="screenshot-arrow" id="screenshot-next" aria-label="รูปถัดไป"><svg aria-hidden="true"><use href="#chevron"/></svg></button><span class="screenshot-sample-tag" id="screenshot-sample-tag">ภาพตัวอย่าง UI</span></div>
+    <div class="screenshot-file-bar"><div class="screenshot-file-info"><strong id="screenshot-filename"></strong><span id="screenshot-file-details"></span></div><div class="screenshot-file-actions"><a class="screenshot-action" id="screenshot-open-file" target="_blank" rel="noopener noreferrer">เปิดไฟล์รูป <svg aria-hidden="true"><use href="#external"/></svg></a><button class="screenshot-action primary" id="screenshot-reveal"><svg aria-hidden="true"><use href="#folder"/></svg>แสดงในโฟลเดอร์</button></div></div>
+    <div class="screenshot-filmstrip" id="screenshot-filmstrip" aria-label="เลือกรูปที่ต้องการดู"></div>
+    <footer class="screenshot-viewer-footer"><p id="screenshot-preview-note">ภาพตัวอย่างสำหรับลอง UI · ยังไม่ได้อ่านโฟลเดอร์เกม</p><button class="screenshot-action" data-import-screenshots><svg aria-hidden="true"><use href="#photo"/></svg>ลองรูปจากเครื่อง</button></footer>
+    <p class="screenshot-feedback" id="screenshot-feedback" role="status" hidden></p>
+    <input id="screenshot-file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+  </dialog>
+</body>
+</html>

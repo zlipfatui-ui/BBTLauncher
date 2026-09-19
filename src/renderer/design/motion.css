@@ -1,0 +1,168 @@
+/* Main shares the already-running sky and titlebar with Start and Login. */
+.entry-shell > .embedded-main {
+  position: absolute;
+  inset: 36px 0 0;
+  width: 100%;
+  height: calc(100% - 36px);
+  min-height: 0;
+  margin: 0;
+  grid-template-rows: minmax(0, 1fr);
+  background: transparent;
+  border: 0;
+}
+.embedded-main > .sidebar {
+  grid-area: 1/1;
+}
+.embedded-main > .workspace {
+  grid-area: 1/2;
+}
+.embedded-main > .drawer {
+  top: 0;
+}
+.embedded-main > .drawer-backdrop {
+  inset: 0;
+}
+.drawer {
+  animation: none;
+}
+.embedded-main[inert],
+.entry-main[inert],
+.entry-screen[inert],
+.entry-footer[inert],
+.drawer[inert],
+.drawer-backdrop[inert] {
+  pointer-events: none;
+}
+.entry-shell > .titlebar {
+  position: relative;
+  z-index: 2;
+}
+.entry-page[data-entry-route="main"] .entry-atmosphere {
+  opacity: 0.35;
+}
+.entry-page[data-entry-route="main"] .entry-meteors {
+  opacity: 0.4;
+}
+.entry-meteors {
+  transition: opacity 680ms ease;
+}
+
+/* Predictable press/release on every main-screen control. */
+.launcher :where(button, a),
+.drawer :where(button, a),
+.screenshot-viewer :where(button, a) {
+  transition:
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease,
+    opacity 220ms ease,
+    box-shadow 260ms ease;
+}
+.launcher :where(button, a):active:not(:disabled),
+.drawer :where(button, a):active:not(:disabled),
+.screenshot-viewer :where(button, a):active:not(:disabled) {
+  transform: translateY(1px) scale(0.975);
+  transition-duration: 90ms;
+}
+.launcher
+  :is(.utility-nav button, .project-button, .account):hover:not(:disabled) {
+  transform: translateX(2px);
+}
+.launcher
+  :is(.launch-button, .launcher-update-button, .screenshot-entry):hover:not(
+    :disabled
+  ) {
+  transform: translateY(-2px);
+}
+.launcher
+  :is(.launch-button, .launcher-update-button, .screenshot-entry):active:not(
+    :disabled
+  ) {
+  transform: translateY(1px) scale(0.985);
+}
+.launcher :where(button, a) > svg,
+.drawer button > svg,
+.screenshot-viewer button > svg {
+  transition:
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 220ms ease;
+}
+.social-links a:hover svg {
+  transform: translateY(-2px);
+}
+.switch-row input,
+.content-item input {
+  transition: background-color 220ms ease;
+}
+.switch-row input:before,
+.content-item input:before {
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.content-tabs button {
+  transition:
+    border-color 250ms ease,
+    color 220ms ease,
+    transform 220ms ease;
+}
+.select-field,
+.search-field input {
+  transition:
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+.directory-editor {
+  overflow: clip;
+}
+.page-heading h1:focus {
+  outline: none;
+}
+.screenshot-viewer::backdrop {
+  animation: viewer-backdrop-in 320ms ease both;
+}
+.screenshot-viewer.is-closing::backdrop {
+  animation: viewer-backdrop-out 220ms ease both;
+}
+@keyframes viewer-backdrop-in {
+  from {
+    background: #00000000;
+  }
+  to {
+    background: #000000d6;
+  }
+}
+@keyframes viewer-backdrop-out {
+  from {
+    background: #000000d6;
+  }
+  to {
+    background: #00000000;
+  }
+}
+@media (max-width: 760px) {
+  .entry-shell {
+    height: 100dvh;
+    min-height: 640px;
+  }
+  .entry-main {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .launcher :where(button, a),
+  .drawer :where(button, a),
+  .screenshot-viewer :where(button, a),
+  .entry-meteors {
+    transition: none;
+  }
+  .launcher :where(button, a):is(:hover, :active),
+  .drawer :where(button, a):active,
+  .screenshot-viewer :where(button, a):active {
+    transform: none;
+  }
+  .screenshot-viewer::backdrop {
+    animation: none;
+  }
+}
