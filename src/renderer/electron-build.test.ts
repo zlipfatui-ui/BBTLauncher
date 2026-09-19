@@ -3,13 +3,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 describe('Electron production build config', () => {
-  it('publishes launcher release metadata as version 0.3.7', () => {
+  it('publishes launcher release metadata as version 0.3.8', () => {
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'));
     const packageLock = JSON.parse(readFileSync(resolve(process.cwd(), 'package-lock.json'), 'utf8'));
 
-    expect(packageJson.version).toBe('0.3.7');
-    expect(packageLock.version).toBe('0.3.7');
-    expect(packageLock.packages[''].version).toBe('0.3.7');
+    expect(packageJson.version).toBe('0.3.8');
+    expect(packageLock.version).toBe('0.3.8');
+    expect(packageLock.packages[''].version).toBe('0.3.8');
   });
 
   it('uses relative asset URLs so file:// can load the renderer bundle', () => {
@@ -45,9 +45,7 @@ describe('Electron production build config', () => {
 
     expect(packageJson.devDependencies['electron-builder']).toBeDefined();
     expect(packageJson.scripts['clean:release']).toBe('node scripts/clean-release.mjs');
-    expect(packageJson.scripts['release:win']).toBe(
-      'npm run clean:release && npm run build && electron-builder --win --x64'
-    );
+    expect(packageJson.scripts['release:win']).toBe('node scripts/release-win.mjs');
     expect(packageJson.build.appId).toBe('com.beforebedtime.launcher');
     expect(packageJson.build.productName).toBe('BeforeBedtime Launcher');
     expect(packageJson.build.electronDist).toBe('node_modules/electron/dist');
@@ -71,7 +69,7 @@ describe('Electron production build config', () => {
       url: 'https://github.com/zlipfatui-ui/BBTLauncher.git'
     });
     expect(packageJson.dependencies['electron-updater']).toBeDefined();
-    expect(packageJson.scripts['publish:win']).toBe('npm run release:win && node scripts/publish-github-release.mjs');
+    expect(packageJson.scripts['publish:win']).toBe('node scripts/publish-github-release.mjs');
     expect(packageJson.build.publish).toEqual([
       {
         provider: 'github',
