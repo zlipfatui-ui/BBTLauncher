@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { StrictMode } from "react";
 import { fallbackApi, type LauncherApi } from "./launcherApi";
 
 const profile = {
@@ -50,6 +51,17 @@ function apiFor(signedIn = true): LauncherApi {
 }
 
 describe("0.3.8 production navigation", () => {
+  it("keeps the wordmark visible when React replays mounting effects", async () => {
+    render(
+      <StrictMode>
+        <App api={apiFor(false)} />
+      </StrictMode>,
+    );
+    await act(async () => {});
+    expect(
+      screen.getByRole("heading", { name: "BEFOREBEDTIME" }),
+    ).toBeVisible();
+  });
   it("keeps the same sky mounted and locks Northvale when a saved session enters SaiNam", async () => {
     const api = apiFor();
     const { container } = render(<App api={api} />);

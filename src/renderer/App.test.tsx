@@ -140,6 +140,11 @@ async function enter(api = makeApi()) {
   const result = render(<App api={api} />);
   fireEvent.click(screen.getByRole("button", { name: "Click to start" }));
   await screen.findByRole("button", { name: "ตั้งค่า Launcher" });
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: /กำลังตรวจสอบ/ }),
+    ).not.toBeInTheDocument(),
+  );
   return { api, ...result };
 }
 async function settings(api = makeApi()) {
@@ -231,9 +236,7 @@ describe("production routes and authentication", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Login with Microsoft" }),
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "ยกเลิก" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "ยกเลิก" }));
     await act(async () =>
       result.resolve({ ok: true as const, value: profile }),
     );
@@ -278,9 +281,7 @@ describe("production routes and authentication", () => {
   it("does not reuse restored session after logout and back to Start", async () => {
     const { api } = await enter();
     fireEvent.click(screen.getByRole("button", { name: "บัญชีผู้เล่น" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "ออกจากระบบ" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "ออกจากระบบ" }));
     await screen.findByRole("button", { name: "Login with Microsoft" });
     fireEvent.click(screen.getByRole("button", { name: "กลับหน้าเริ่มต้น" }));
     fireEvent.click(screen.getByRole("button", { name: "Click to start" }));
@@ -292,7 +293,9 @@ describe("production routes and authentication", () => {
   it("uses real Electron controls and social destinations", async () => {
     const { api } = await enter();
     fireEvent.click(screen.getByRole("button", { name: "Minimize" }));
-    fireEvent.click(screen.getByRole("button", { name: "Maximize" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Maximize" }));
+    });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("link", { name: "YouTube" }));
     expect(api.window?.minimize).toHaveBeenCalledOnce();
@@ -316,6 +319,15 @@ describe("production routes and authentication", () => {
 });
 
 describe("real game lifecycle", () => {
+  it("waits for the stored game directory before reading project state", async () => {
+    const api = makeApi(),
+      result = pending<LauncherSettings>();
+    vi.mocked(api.settings.load).mockReturnValue(result.promise);
+    render(<App api={api} />);
+    expect(api.project.getState).not.toHaveBeenCalled();
+    await act(async () => result.resolve(saved));
+    expect(api.project.getState).toHaveBeenCalledExactlyOnceWith("sainam");
+  });
   it.each([
     ["install", 0, 0, 0, "ติดตั้งเกม"],
     ["update", 1, 0, 0, "ซ่อมไฟล์"],
@@ -383,13 +395,11 @@ describe("real game lifecycle", () => {
   it("shows CHECKING RUNTIME without claiming Java is downloading", async () => {
     const { api } = await enter();
     await act(async () =>
-      vi
-        .mocked(api.project.onProgress)
-        .mock.calls[0][0]({
-          projectId: "sainam",
-          phase: "CHECKING_RUNTIME",
-          message: "CHECKING RUNTIME",
-        }),
+      vi.mocked(api.project.onProgress).mock.calls[0][0]({
+        projectId: "sainam",
+        phase: "CHECKING_RUNTIME",
+        message: "CHECKING RUNTIME",
+      }),
     );
     expect(screen.getByRole("status")).toHaveTextContent("CHECKING RUNTIME");
     expect(screen.getByRole("status")).not.toHaveTextContent(
@@ -399,13 +409,11 @@ describe("real game lifecycle", () => {
   it("ignores another project progress event", async () => {
     const { api } = await enter();
     await act(async () =>
-      vi
-        .mocked(api.project.onProgress)
-        .mock.calls[0][0]({
-          projectId: "northvale",
-          phase: "SYNCING",
-          message: "wrong project",
-        }),
+      vi.mocked(api.project.onProgress).mock.calls[0][0]({
+        projectId: "northvale",
+        phase: "SYNCING",
+        message: "wrong project",
+      }),
     );
     expect(screen.queryByText("wrong project")).toBeNull();
   });
@@ -584,9 +592,7 @@ describe("machine settings and content", () => {
   });
   it("opens content overlay and retains SaiNam file drops", async () => {
     const { api, container } = await enter();
-    fireEvent.click(
-      screen.getByRole("button", { name: "จัดการคอนเทนต์" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "จัดการคอนเทนต์" }));
     const file = new File(["jar"], "my-mod.jar", {
       type: "application/java-archive",
     });
@@ -621,9 +627,7 @@ describe("machine settings and content", () => {
       ],
     });
     await enter(api);
-    fireEvent.click(
-      screen.getByRole("button", { name: "จัดการคอนเทนต์" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "จัดการคอนเทนต์" }));
     await screen.findByText("user.jar");
     fireEvent.change(screen.getByRole("textbox", { name: "ค้นหาคอนเทนต์" }), {
       target: { value: "nothing" },

@@ -67,8 +67,8 @@ async function prepareArtwork() {
   await Promise.all([
     document.fonts?.load('700 80px "Barlow Condensed"'),
     document.fonts?.load('400 28px "Inter Tight"'),
-    document.fonts?.load('400 14px Plex'),
-    document.fonts?.load('500 14px Plex'),
+    document.fonts?.load("400 14px Plex"),
+    document.fonts?.load("500 14px Plex"),
     document.fonts?.ready,
   ]);
   const image = new Image();
@@ -157,6 +157,7 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
     const prev = previousRoute.current,
       next = refs[route],
       rev = ++motionRevision.current;
+    if (prev === route) return;
     const old = prev ? refs[prev] : null;
     const from = old
       ?.querySelector<HTMLElement>(".entry-wordmark")
@@ -170,7 +171,8 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
     }
     const brand = next.querySelector<HTMLElement>(".entry-wordmark");
     const nextWasHidden = next.hidden;
-    const selector = ".welcome-family,.start-button,.start-switch-account,.welcome-signature,.login-content,.login-brand>p,.entry-back";
+    const selector =
+      ".welcome-family,.start-button,.start-switch-account,.welcome-signature,.login-content,.login-brand>p,.entry-back";
     next.hidden = false;
     next
       .querySelectorAll<HTMLElement>(".entry-wordmark")
@@ -195,13 +197,17 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
           next.querySelector(".sidebar")!,
           { opacity: 1, transform: "none" },
           680,
-          nextWasHidden ? { opacity: 0, transform: "translateX(-18px)" } : undefined,
+          nextWasHidden
+            ? { opacity: 0, transform: "translateX(-18px)" }
+            : undefined,
         ),
         move(
           next.querySelector(".workspace")!,
           { opacity: 1, transform: "none" },
           680,
-          nextWasHidden ? { opacity: 0, transform: "translateY(16px)" } : undefined,
+          nextWasHidden
+            ? { opacity: 0, transform: "translateY(16px)" }
+            : undefined,
           nextWasHidden ? 70 : 0,
         ),
       ]);
@@ -250,7 +256,9 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
             el,
             { opacity: 1, transform: "none" },
             480,
-            nextWasHidden ? { opacity: 0, transform: "translateY(12px)" } : undefined,
+            nextWasHidden
+              ? { opacity: 0, transform: "translateY(12px)" }
+              : undefined,
             nextWasHidden ? 100 + i * 35 : 0,
           ),
         );
@@ -272,7 +280,9 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
           );
       } catch (error) {
         if (navigationRevision.current === id) {
-          setBootError(operationError(error, "เตรียม Launcher ไม่สำเร็จ กรุณาลองเปิดใหม่"));
+          setBootError(
+            operationError(error, "เตรียม Launcher ไม่สำเร็จ กรุณาลองเปิดใหม่"),
+          );
           setWaiting(false);
         }
         return;

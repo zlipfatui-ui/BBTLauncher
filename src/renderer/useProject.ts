@@ -32,6 +32,7 @@ export function useProject(
   useEffect(() => {
     let live = true;
     setState(null);
+    if (!path) return;
     void api.project
       .getState(project.id)
       .then((result) => {
