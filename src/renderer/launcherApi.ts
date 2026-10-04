@@ -97,9 +97,29 @@ export const fallbackManifest: LauncherManifest = {
   generatedAt: '2026-07-05T00:00:00.000Z',
   projects: [
     {
+      id: 'sainam',
+      title: 'SaiNam',
+      statusText: 'UP TO DATE',
+      minecraft: {
+        version: '1.20.1',
+        loader: 'forge',
+        loaderVersion: '47.4.20',
+        javaMajor: 17
+      },
+      artwork: {
+        cover: 'https://webbbt.zlipfatui.workers.dev/assets/images/logos/sainam-logo.png',
+        gallery: [
+          'https://webbbt.zlipfatui.workers.dev/assets/images/gallery/sainam/01.png'
+        ]
+      },
+      files: []
+    },
+    {
       id: 'northvale',
       title: 'Northvale',
       statusText: 'UP TO DATE',
+      visibility: 'locked',
+      lockedMessage: 'ยังไม่เปิดให้เล่น',
       minecraft: {
         version: '1.20.1',
         loader: 'forge',
@@ -114,24 +134,6 @@ export const fallbackManifest: LauncherManifest = {
           '/assets/images/gallery/ss0/03.png',
           '/assets/images/gallery/ss0/04.png',
           '/assets/images/gallery/ss0/05.png'
-        ]
-      },
-      files: []
-    },
-    {
-      id: 'sainam',
-      title: 'SaiNam',
-      statusText: 'UP TO DATE',
-      minecraft: {
-        version: '1.20.1',
-        loader: 'forge',
-        loaderVersion: '47.4.20',
-        javaMajor: 17
-      },
-      artwork: {
-        cover: 'https://webbbt.zlipfatui.workers.dev/assets/images/logos/sainam-logo.png',
-        gallery: [
-          'https://webbbt.zlipfatui.workers.dev/assets/images/gallery/sainam/01.png'
         ]
       },
       files: []

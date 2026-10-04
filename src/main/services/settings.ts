@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import type { LauncherSettings } from '../../shared/types.js';
-import { SAINAM_PROJECT_ID } from '../../shared/types.js';
+import { SAINAM_PROJECT_ID, isProjectId } from '../../shared/types.js';
 import { clampMemoryMb, getMemoryRange } from '../../shared/memory.js';
 import { readSystemMemoryInfo } from './system-memory.js';
 
@@ -44,7 +44,8 @@ function normalizeSettings(rootDir: string, value: Partial<LauncherSettings>): L
     height: Number.isFinite(value.height) ? Math.max(480, Math.floor(Number(value.height))) : defaults.height,
     fullscreen: Boolean(value.fullscreen),
     memoryMb,
-    selectedProject: SAINAM_PROJECT_ID,
+    // Any manifest project id; the renderer falls back to the first playable project if it disappears.
+    selectedProject: isProjectId(value.selectedProject) ? value.selectedProject : defaults.selectedProject,
     starMotion: typeof value.starMotion === 'boolean' ? value.starMotion : true
   };
 }

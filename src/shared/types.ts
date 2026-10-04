@@ -1,12 +1,14 @@
 export const NORTHVALE_PROJECT_ID = 'northvale';
 export const SAINAM_PROJECT_ID = 'sainam';
-export const PROJECT_IDS = [NORTHVALE_PROJECT_ID, SAINAM_PROJECT_ID] as const;
-
-export type ProjectId = (typeof PROJECT_IDS)[number];
+/** Projects come from the manifest; ids are lowercase slugs that double as folder names. */
+export type ProjectId = string;
+const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{1,31}$/;
 
 export function isProjectId(value: unknown): value is ProjectId {
-  return PROJECT_IDS.some((projectId) => projectId === value);
+  return typeof value === 'string' && PROJECT_ID_PATTERN.test(value);
 }
+
+export type ProjectVisibility = 'public' | 'locked';
 
 export type ProjectContentKind = 'mods' | 'resourcepacks' | 'shaderpacks';
 export type ProjectContentSource = 'user' | 'managed';
@@ -60,10 +62,16 @@ export interface LauncherProject {
   id: ProjectId;
   title: string;
   statusText: string;
+  /** Hidden projects never reach the launcher; missing means public. */
+  visibility?: ProjectVisibility;
+  lockedMessage?: string;
+  seasonLabel?: string;
+  tagline?: string;
+  description?: string;
   minecraft: {
-    version: '1.20.1';
+    version: string;
     loader: 'forge';
-    loaderVersion: '47.4.20' | '47.4.10';
+    loaderVersion: string;
     javaMajor: 17;
   };
   artwork: {

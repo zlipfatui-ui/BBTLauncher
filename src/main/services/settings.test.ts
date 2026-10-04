@@ -83,7 +83,7 @@ describe('launcher settings', () => {
       expect(settings.height).toBe(900);
       expect(settings.fullscreen).toBe(true);
       expect(settings.memoryMb).toBe(6144);
-      expect(settings.selectedProject).toBe('sainam');
+      expect(settings.selectedProject).toBe('northvale');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -105,11 +105,11 @@ describe('launcher settings', () => {
     }
   });
 
-  it('falls back to SaiNam for an unknown project id', async () => {
+  it('falls back to SaiNam for an invalid project id', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
     try {
       const saved = await saveSettings(root, {
-        selectedProject: 'unknown' as never
+        selectedProject: 'Not A Slug!' as never
       });
 
       expect(saved.selectedProject).toBe('sainam');
@@ -130,11 +130,11 @@ describe('launcher settings', () => {
     })).toBe('D:/NorthvaleLauncherData');
   });
 
-  it('migrates only project selection and defaults motion while preserving legacy RAM and paths', async () => {
+  it('keeps the saved project and defaults motion while preserving legacy RAM and paths', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-settings-'));
     try {
       await writeFile(join(root, 'settings.json'), JSON.stringify({ appDirectory: 'D:/Existing Games', memoryMb: 1537, selectedProject: 'northvale' }));
-      expect(await loadSettings(root)).toMatchObject({ appDirectory: 'D:/Existing Games', memoryMb: 1537, selectedProject: 'sainam', starMotion: true });
+      expect(await loadSettings(root)).toMatchObject({ appDirectory: 'D:/Existing Games', memoryMb: 1537, selectedProject: 'northvale', starMotion: true });
       expect(await saveSettings(root, { starMotion: false })).toMatchObject({ memoryMb: 1537, starMotion: false });
       expect(await loadSettings(root)).toMatchObject({ memoryMb: 1537, starMotion: false });
     } finally { await rm(root, { recursive: true, force: true }); }

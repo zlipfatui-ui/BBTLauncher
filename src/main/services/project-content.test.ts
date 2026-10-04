@@ -43,11 +43,11 @@ describe('project content roots', () => {
     }
   });
 
-  it('rejects content roots for unknown projects', async () => {
+  it('rejects content roots for invalid project ids', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-project-content-'));
     try {
       await expect(
-        ensureProjectContentDirectory(root, 'unknown', 'mods')
+        ensureProjectContentDirectory(root, '../escape', 'mods')
       ).rejects.toThrow(/not supported/i);
     } finally {
       await rm(root, { recursive: true, force: true });

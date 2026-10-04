@@ -7,9 +7,17 @@ export interface DiscordPresenceService {
   stop(): void;
 }
 
+export interface PresenceProjectInfo {
+  title: string;
+  minecraftVersion: string;
+  loaderVersion: string;
+}
+
 interface DiscordPresenceOptions {
   rpc: DiscordRpcClient;
   now?: () => number;
+  /** Looks up dashboard-managed projects in the current manifest. */
+  describeProject?: (projectId: string) => PresenceProjectInfo | undefined;
 }
 
 function launcherActivity(start: number): DiscordActivity {
@@ -23,12 +31,13 @@ function launcherActivity(start: number): DiscordActivity {
   };
 }
 
-function projectActivity(start: number, projectId?: string): DiscordActivity {
+function projectActivity(start: number, projectId?: string, info?: PresenceProjectInfo): DiscordActivity {
+  const runtime = info ? `Minecraft ${info.minecraftVersion} • Forge ${info.loaderVersion}` : 'Minecraft 1.20.1 • Forge 47.4.20';
   if (projectId === SAINAM_PROJECT_ID) {
     return {
       type: 0,
       details: 'กำลังเล่น SAINAM',
-      state: 'Minecraft 1.20.1 • Forge 47.4.20',
+      state: runtime,
       timestamps: { start },
       assets: { large_image: 'sainam', large_text: 'SAINAM' },
       instance: false
@@ -37,8 +46,8 @@ function projectActivity(start: number, projectId?: string): DiscordActivity {
 
   return {
     type: 0,
-    details: 'กำลังเล่น Northvale',
-    state: 'Minecraft 1.20.1 • Forge 47.4.20',
+    details: `กำลังเล่น ${info?.title ?? 'Northvale'}`,
+    state: runtime,
     timestamps: { start },
     assets: { large_image: 'bbt', large_text: 'BeforeBedtime' },
     instance: false
@@ -57,7 +66,11 @@ export function createDiscordPresenceService(options: DiscordPresenceOptions): D
     updateLaunchState(state: ProjectLaunchState): void {
       if (state.status === 'running' && mode === 'launcher') {
         mode = 'project';
-        options.rpc.setActivity(projectActivity(Math.floor(now() / 1_000), state.projectId));
+        options.rpc.setActivity(projectActivity(
+          Math.floor(now() / 1_000),
+          state.projectId,
+          state.projectId ? options.describeProject?.(state.projectId) : undefined
+        ));
       }
       if (state.status === 'idle' && mode === 'project') {
         mode = 'launcher';

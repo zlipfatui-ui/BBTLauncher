@@ -47,7 +47,7 @@ const launcherRoot = resolveLauncherRoot();
 const runtimeOperations = createRuntimeOperations();
 const manifestBaseUrl =
   process.env.BBT_MANIFEST_BASE_URL || 'https://webbbt.zlipfatui.workers.dev';
-const manifestClient = createManifestClient({ baseUrl: manifestBaseUrl });
+const manifestClient = createManifestClient({ baseUrl: manifestBaseUrl, launcherVersion: app.getVersion() });
 let cachedManifest: LauncherManifest | null = null;
 const msalCachePath = join(launcherRoot, 'auth', 'msal-cache.bin');
 const legacyRefreshTokenPath = join(launcherRoot, 'auth', 'legacy-live-refresh-token.bin');
@@ -162,7 +162,15 @@ const updateService = createLauncherUpdateService({
 });
 
 const discordRpc = createDiscordRpcClient({ applicationId: PRODUCT_DISCORD_APPLICATION_ID });
-const discordPresence = createDiscordPresenceService({ rpc: discordRpc });
+const discordPresence = createDiscordPresenceService({
+  rpc: discordRpc,
+  describeProject: (projectId) => {
+    const project = cachedManifest?.projects.find((entry) => entry.id === projectId);
+    return project
+      ? { title: project.title, minecraftVersion: project.minecraft.version, loaderVersion: project.minecraft.loaderVersion }
+      : undefined;
+  }
+});
 
 function safelyUpdateDiscordPresence(action: () => void) {
   try {

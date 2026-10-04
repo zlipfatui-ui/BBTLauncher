@@ -1,15 +1,20 @@
 import type { LauncherFile, LauncherManifest, LauncherProject } from '../../shared/types.js';
-import {
-  isProjectId,
-  NORTHVALE_PROJECT_ID,
-  SAINAM_PROJECT_ID
-} from '../../shared/types.js';
+import { isProjectId } from '../../shared/types.js';
 import { normalizeProjectFilePath } from './path-safety.js';
-import { isForbiddenProjectManifestPath, isLauncherManagedProjectPath } from './managed-project-files.js';
+import {
+  isForbiddenProjectManifestPath,
+  isIgnoredPlayerLocalProjectManifestPath,
+  isLauncherManagedProjectPath
+} from './managed-project-files.js';
+import { updateProjectAvailability } from './project-availability.js';
+
+/** Tells the server which manifest shape this launcher understands (dynamic projects, seed shaderpacks). */
+export const LAUNCHER_VERSION_HEADER = 'X-BBT-Launcher-Version';
 
 export interface ManifestClientOptions {
   baseUrl: string;
   fetchImpl?: typeof fetch;
+  launcherVersion?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -22,15 +27,6 @@ function expectString(value: unknown, label: string): string {
   }
   return value;
 }
-
-const projectMetadata = {
-  [NORTHVALE_PROJECT_ID]: {
-    loaderVersion: '47.4.20'
-  },
-  [SAINAM_PROJECT_ID]: {
-    loaderVersion: '47.4.20'
-  }
-} as const;
 
 function validateFile(value: unknown): LauncherFile {
   if (!isRecord(value)) throw new Error('Invalid launcher manifest: file entry must be an object.');
@@ -46,7 +42,9 @@ function validateFile(value: unknown): LauncherFile {
   if (!/^[A-F0-9]{64}$/.test(sha256)) {
     throw new Error(`Invalid launcher manifest: file sha256 must be 64 hex chars for ${path}.`);
   }
-  if (!isLauncherManagedProjectPath(path)) {
+  // Player-owned roots (shaderpacks) are only accepted as seed entries: installed once, never overwritten.
+  const seedOnlyRoot = isIgnoredPlayerLocalProjectManifestPath(path) && value.syncMode === 'seed';
+  if (!isLauncherManagedProjectPath(path) && !seedOnlyRoot) {
     throw new Error(`Invalid launcher manifest: file path is not launcher-managed: ${path}`);
   }
   if (isForbiddenProjectManifestPath(path)) {
@@ -72,19 +70,18 @@ function validateProject(value: unknown): LauncherProject {
     throw new Error(`Invalid launcher manifest: unsupported project id ${String(value.id)}.`);
   }
   const projectId = value.id;
-  const expected = projectMetadata[projectId];
 
   const minecraft = isRecord(value.minecraft) ? value.minecraft : {};
   if (
-    minecraft.version !== '1.20.1' ||
+    typeof minecraft.version !== 'string' || !/^1\.\d{1,2}(\.\d{1,2})?$/.test(minecraft.version) ||
     minecraft.loader !== 'forge' ||
-    minecraft.loaderVersion !== expected.loaderVersion ||
+    typeof minecraft.loaderVersion !== 'string' || !/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(minecraft.loaderVersion) ||
     minecraft.javaMajor !== 17
   ) {
-    throw new Error(
-      `Invalid launcher manifest: ${projectId} must use Forge 1.20.1-${expected.loaderVersion} and Java 17.`
-    );
+    throw new Error(`Invalid launcher manifest: ${projectId} must use Forge with Java 17.`);
   }
+  const optionalText = (key: string, max: number) =>
+    typeof value[key] === 'string' && (value[key] as string).trim() ? (value[key] as string).slice(0, max) : undefined;
 
   const artwork = isRecord(value.artwork) ? value.artwork : {};
   const gallery = Array.isArray(artwork.gallery) ? artwork.gallery.map((item) => expectString(item, 'gallery item')) : [];
@@ -96,10 +93,15 @@ function validateProject(value: unknown): LauncherProject {
     id: projectId,
     title: expectString(value.title, 'project.title'),
     statusText: expectString(value.statusText, 'project.statusText'),
+    ...(value.visibility === 'locked' ? { visibility: 'locked' as const } : {}),
+    ...(optionalText('lockedMessage', 200) ? { lockedMessage: optionalText('lockedMessage', 200) } : {}),
+    ...(optionalText('seasonLabel', 60) ? { seasonLabel: optionalText('seasonLabel', 60) } : {}),
+    ...(optionalText('tagline', 80) ? { tagline: optionalText('tagline', 80) } : {}),
+    ...(optionalText('description', 400) ? { description: optionalText('description', 400) } : {}),
     minecraft: {
-      version: '1.20.1',
+      version: minecraft.version,
       loader: 'forge',
-      loaderVersion: expected.loaderVersion,
+      loaderVersion: minecraft.loaderVersion,
       javaMajor: 17
     },
     artwork: {
@@ -114,7 +116,10 @@ export function validateLauncherManifest(value: unknown): LauncherManifest {
   if (!isRecord(value)) throw new Error('Invalid launcher manifest: root must be an object.');
   if (value.schemaVersion !== 1) throw new Error('Invalid launcher manifest: schemaVersion must be 1.');
   const generatedAt = expectString(value.generatedAt, 'generatedAt');
-  const projects = Array.isArray(value.projects) ? value.projects.map(validateProject) : [];
+  // The server never sends hidden projects; skip any that slip through rather than show them.
+  const projects = Array.isArray(value.projects)
+    ? value.projects.filter((project) => !isRecord(project) || project.visibility !== 'hidden').map(validateProject)
+    : [];
   if (projects.length === 0) throw new Error('Invalid launcher manifest: at least one project is required.');
   const projectIds = projects.map((project) => project.id);
   if (new Set(projectIds).size !== projectIds.length) {
@@ -123,16 +128,18 @@ export function validateLauncherManifest(value: unknown): LauncherManifest {
   return { schemaVersion: 1, generatedAt, projects };
 }
 
-export function createManifestClient({ baseUrl, fetchImpl = fetch }: ManifestClientOptions) {
+export function createManifestClient({ baseUrl, fetchImpl = fetch, launcherVersion }: ManifestClientOptions) {
   return {
     async refresh(): Promise<LauncherManifest> {
       const url = new URL('/api/launcher/manifest', baseUrl);
-      const response = await fetchImpl(url.toString());
+      const response = await fetchImpl(url.toString(), launcherVersion ? { headers: { [LAUNCHER_VERSION_HEADER]: launcherVersion } } : undefined);
       if (!response.ok) {
         throw new Error(`Launcher manifest request failed with HTTP ${response.status}.`);
       }
 
-      return validateLauncherManifest(await response.json());
+      const manifest = validateLauncherManifest(await response.json());
+      updateProjectAvailability(manifest);
+      return manifest;
     }
   };
 }

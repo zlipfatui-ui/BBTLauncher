@@ -75,10 +75,10 @@ describe('manifest client', () => {
     });
   });
 
-  it('rejects unknown, duplicate, and mismatched project metadata', () => {
-    const unknown = structuredClone(manifest) as unknown as Record<string, unknown>;
-    (unknown.projects as Array<Record<string, unknown>>)[0].id = 'unknown';
-    expect(() => validateLauncherManifest(unknown)).toThrow(/project id|supports/i);
+  it('rejects invalid ids, duplicates and unsupported runtimes', () => {
+    const invalid = structuredClone(manifest) as unknown as Record<string, unknown>;
+    (invalid.projects as Array<Record<string, unknown>>)[0].id = 'Not A Slug';
+    expect(() => validateLauncherManifest(invalid)).toThrow(/project id/i);
 
     const duplicate = structuredClone(manifest) as unknown as Record<string, unknown>;
     (duplicate.projects as unknown[]).push(structuredClone((duplicate.projects as unknown[])[0]));
@@ -93,12 +93,31 @@ describe('manifest client', () => {
         version: '1.20.1',
         loader: 'forge',
         loaderVersion: '47.4.10',
-        javaMajor: 17
+        javaMajor: 16
       },
       artwork: { cover: '', gallery: [] },
       files: []
     });
-    expect(() => validateLauncherManifest(mismatched)).toThrow(/47\.4\.20/i);
+    expect(() => validateLauncherManifest(mismatched)).toThrow(/Java 17/i);
+  });
+
+  it('accepts dashboard projects with their own runtime, visibility and seed shaderpacks', () => {
+    const next = structuredClone(manifest) as unknown as { projects: Array<Record<string, unknown>> };
+    next.projects.push({
+      id: 'season-2', title: 'Season 2', statusText: 'UP TO DATE', visibility: 'locked', lockedMessage: 'เร็ว ๆ นี้',
+      seasonLabel: 'SEASON 02', tagline: 'tag', description: 'desc',
+      minecraft: { version: '1.20.1', loader: 'forge', loaderVersion: '47.4.21', javaMajor: 17 },
+      artwork: { cover: 'https://x/c.png', gallery: [] },
+      files: [{ path: 'shaderpacks/s.zip', url: '/api/launcher/files/season-2/shaderpacks/s.zip', sha256: 'A'.repeat(64), size: 1, required: true, syncMode: 'seed' }]
+    });
+    next.projects.push({ ...next.projects[1], id: 'secret', visibility: 'hidden' });
+    const result = validateLauncherManifest(next);
+    expect(result.projects.map((p) => p.id)).toEqual([...manifest.projects.map((p) => p.id), 'season-2']);
+    expect(result.projects.at(-1)).toMatchObject({ visibility: 'locked', lockedMessage: 'เร็ว ๆ นี้', seasonLabel: 'SEASON 02', minecraft: { loaderVersion: '47.4.21' } });
+
+    const forced = structuredClone(next);
+    (forced.projects[1].files as Array<Record<string, unknown>>)[0].syncMode = 'required';
+    expect(() => validateLauncherManifest(forced)).toThrow(/not launcher-managed/i);
   });
 
   it('rejects unsafe file paths from the manifest', () => {

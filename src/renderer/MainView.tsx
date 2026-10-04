@@ -42,9 +42,16 @@ export function MainView({
   onLogout(): Promise<void>;
   onToggleStars(): Promise<void>;
 }) {
+  // Projects come from the manifest (dashboard-managed); SaiNam keeps its bespoke artwork.
+  const playable = manifest.projects.filter((item) => item.visibility !== "locked");
+  const selectedId = playable.some((item) => item.id === settings.selectedProject)
+    ? settings.selectedProject
+    : (playable[0]?.id ?? "sainam");
   const project =
-    manifest.projects.find((item) => item.id === "sainam") ??
+    manifest.projects.find((item) => item.id === selectedId) ??
     fallbackManifest.projects.find((item) => item.id === "sainam")!;
+  const isSainam = project.id === "sainam";
+  const seasonLabel = project.seasonLabel ?? (isSainam ? "Season Test" : "");
   const game = useProject(api, project, settings.appDirectory);
   const [panel, setPanel] = useState<Panel>("settings"),
     [panelOpen, setPanelOpen] = useState(false),
@@ -117,13 +124,18 @@ export function MainView({
     settings: "ตั้งค่า Launcher",
     account: "บัญชีผู้เล่น",
     shop: "ร้านค้า",
-    details: "SaiNam",
+    details: project.title,
     content: "จัดการคอนเทนต์",
   };
   const updateVisible = ["available", "downloading", "downloaded"].includes(
     update.status,
   );
   const overlayOpen = panelOpen || galleryOpen;
+  function selectProject(projectId: string) {
+    if (projectId === selectedId || busy) return;
+    setSettings((current) => ({ ...current, selectedProject: projectId }));
+    void api.settings.save({ selectedProject: projectId }).catch((error) => setNotice(operationError(error)));
+  }
   return (
     <>
       <aside className="sidebar" inert={overlayOpen}>
@@ -144,39 +156,53 @@ export function MainView({
           </span>
         </button>
         <div className="library-label">
-          โลกของเรา<span>2</span>
+          โลกของเรา<span>{manifest.projects.length}</span>
         </div>
         <nav className="projects" aria-label="เลือกโปรเจกต์">
-          <button
-            className="project-button selected"
-            aria-label="SaiNam Season Test"
-            aria-pressed="true"
-            onClick={close}
-          >
-            <img
-              className="sainam-thumb"
-              src={asset("/assets/images/logos/SAINAM.png")}
-              alt=""
-              draggable={false}
-            />
-            <span>
-              <strong>SaiNam</strong>
-              <small>Season Test</small>
-            </span>
-            <span className="project-dot" />
-          </button>
-          <button
-            className="project-button project-locked"
-            disabled
-            aria-label="Northvale — ยังไม่เปิดให้เล่น"
-          >
-            <span className="project-monogram">N</span>
-            <span className="project-copy">
-              <strong>Northvale</strong>
-              <small>ยังไม่เปิดให้เล่น</small>
-            </span>
-            <Icon className="project-lock" name="lock" />
-          </button>
+          {manifest.projects.map((item) => {
+            if (item.visibility === "locked") {
+              const message = item.lockedMessage ?? "ยังไม่เปิดให้เล่น";
+              return (
+                <button
+                  key={item.id}
+                  className="project-button project-locked"
+                  disabled
+                  aria-label={`${item.title} — ${message}`}
+                >
+                  <span className="project-monogram">{item.title.charAt(0).toUpperCase()}</span>
+                  <span className="project-copy">
+                    <strong>{item.title}</strong>
+                    <small>{message}</small>
+                  </span>
+                  <Icon className="project-lock" name="lock" />
+                </button>
+              );
+            }
+            const selected = item.id === project.id;
+            const label = item.seasonLabel ?? (item.id === "sainam" ? "Season Test" : "");
+            return (
+              <button
+                key={item.id}
+                className={`project-button${selected ? " selected" : ""}`}
+                aria-label={`${item.title} ${label}`.trim()}
+                aria-pressed={selected}
+                disabled={!selected && busy}
+                onClick={() => (selected ? close() : selectProject(item.id))}
+              >
+                <img
+                  className="sainam-thumb"
+                  src={asset(item.id === "sainam" ? "/assets/images/logos/SAINAM.png" : item.artwork.cover)}
+                  alt=""
+                  draggable={false}
+                />
+                <span>
+                  <strong>{item.title}</strong>
+                  {label && <small>{label}</small>}
+                </span>
+                {selected && <span className="project-dot" />}
+              </button>
+            );
+          })}
         </nav>
         <div className="sidebar-rule" />
         <nav className="utility-nav" aria-label="เครื่องมือ">
@@ -184,7 +210,7 @@ export function MainView({
             <Icon name="folder" />
             <span>จัดการคอนเทนต์</span>
           </button>
-          <button onClick={showGallery} aria-label="รูปที่ถ่ายไว้ใน SAINAM">
+          <button onClick={showGallery} aria-label={`รูปที่ถ่ายไว้ใน ${project.title}`}>
             <Icon name="photo" />
             <span>รูปที่ถ่ายไว้</span>
           </button>
@@ -270,16 +296,16 @@ export function MainView({
             </button>
           </div>
         </header>
-        <section className="world-feature" aria-label="โลก SaiNam">
+        <section className="world-feature" aria-label={`โลก ${project.title}`}>
           <img
             className="hero-image"
-            src={asset("/assets/launcher/sainam-forest.png")}
-            alt="ภาพวาดป่าและสายน้ำของ SaiNam"
+            src={asset(isSainam ? "/assets/launcher/sainam-forest.png" : (project.artwork.gallery[0] ?? project.artwork.cover))}
+            alt={isSainam ? "ภาพวาดป่าและสายน้ำของ SaiNam" : project.title}
             draggable={false}
           />
           <div className="hero-shade" />
           <div className="hero-top">
-            <span className="season">SEASON TEST</span>
+            <span className="season">{seasonLabel.toUpperCase()}</span>
             <span className="edition">MINECRAFT JAVA EDITION</span>
           </div>
           <div className="hero-copy">
@@ -287,13 +313,19 @@ export function MainView({
               <Icon name="star" />
               <span />
             </div>
-            <h2>SAINAM</h2>
-            <p className="world-tagline">สาย-น้ำ</p>
-            <p className="world-description">
-              ใบไม้ที่ร่วงโรย แสงแดดอันอบอุ่น และค่ายฤดูใบไม้ร่วง
-              <br />
-              ที่ไม่มีใคร…กลับออกมาเหมือนเดิม
-            </p>
+            <h2>{project.title.toUpperCase()}</h2>
+            {(project.tagline ?? (isSainam ? "สาย-น้ำ" : "")) && (
+              <p className="world-tagline">{project.tagline ?? "สาย-น้ำ"}</p>
+            )}
+            {project.description ? (
+              <p className="world-description">{project.description}</p>
+            ) : isSainam ? (
+              <p className="world-description">
+                ใบไม้ที่ร่วงโรย แสงแดดอันอบอุ่น และค่ายฤดูใบไม้ร่วง
+                <br />
+                ที่ไม่มีใคร…กลับออกมาเหมือนเดิม
+              </p>
+            ) : null}
             <button className="text-button" onClick={() => open("details")}>
               รู้จักโลกใบนี้
               <Icon name="arrow" />
@@ -308,13 +340,14 @@ export function MainView({
           <div className="world-info-title">
             <Icon name="world" />
             <span>
-              SaiNam<small>Season Test</small>
+              {project.title}
+              {seasonLabel && <small>{seasonLabel}</small>}
             </span>
           </div>
           <button
             className="screenshot-entry"
             onClick={showGallery}
-            aria-label="เปิดแกลเลอรีรูป SAINAM"
+            aria-label={`เปิดแกลเลอรีรูป ${project.title.toUpperCase()}`}
           >
             <ScreenshotThumbnail
               key={settings.appDirectory}
@@ -416,7 +449,7 @@ export function MainView({
           panel === "settings"
             ? "จัดพื้นที่ให้การผจญภัยครั้งต่อไป"
             : panel === "content"
-              ? "SaiNam · ไฟล์ในโปรเจกต์"
+              ? `${project.title} · ไฟล์ในโปรเจกต์`
               : "BeforeBedtime"
         }
         onClose={close}
