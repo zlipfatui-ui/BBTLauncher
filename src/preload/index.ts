@@ -68,6 +68,9 @@ contextBridge.exposeInMainWorld('bbtLauncher', {
       return () => ipcRenderer.removeListener('project:launchState', listener);
     }
   },
+  logs: {
+    send: (projectId?: string, note?: string) => ipcRenderer.invoke('logs:send', projectId, note)
+  },
   updater: {
     getState: () => ipcRenderer.invoke('updater:getState'),
     check: () => ipcRenderer.invoke('updater:check'),

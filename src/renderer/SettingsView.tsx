@@ -4,17 +4,20 @@ import { getMemoryRange } from "../shared/memory";
 import type { LauncherApi } from "./launcherApi";
 import { Icon } from "./Visuals";
 import { operationError } from "./operation-error";
+import { LogReportSection } from "./LogReportSection";
 
 export function SettingsView({
   api,
   settings,
   onSaved,
   open,
+  projectId,
 }: {
   api: LauncherApi;
   settings: LauncherSettings;
   onSaved(settings: LauncherSettings): void;
   open: boolean;
+  projectId?: string;
 }) {
   const [draft, setDraft] = useState(settings),
     [memory, setMemory] = useState<SystemMemoryInfo | null>(null),
@@ -282,6 +285,7 @@ export function SettingsView({
           {notice}
         </p>
       )}
+      <LogReportSection api={api} projectId={projectId} />
     </>
   );
 }

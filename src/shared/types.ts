@@ -146,6 +146,12 @@ export type IpcResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: { code: AuthErrorCode; message: string } };
 
+export type LogReportErrorCode = 'NO_LOGS' | 'UNAUTHORIZED' | 'RATE_LIMITED' | 'UPLOAD_FAILED' | 'AUTH_REQUIRED';
+
+export type LogReportResult =
+  | { ok: true; value: { id: string; files: string[] } }
+  | { ok: false; error: { code: LogReportErrorCode; message: string } };
+
 export interface SyncResult {
   status: 'ready';
   downloaded: number;

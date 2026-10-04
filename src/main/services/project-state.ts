@@ -33,8 +33,10 @@ function managedManifestFiles(rootDir: string, projectId: string, files: Launche
   for (const file of files) {
     const safePath = normalizeProjectFilePath(file.path);
     if (shouldBypassPackAuthorManifestFile(rootDir, projectId, safePath)) continue;
-    if (isIgnoredPlayerLocalProjectManifestPath(safePath)) continue;
-    if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
+    // Player-owned roots (shaderpacks) only accept seed entries: installed if missing, never overwritten or pruned.
+    const playerLocal = isIgnoredPlayerLocalProjectManifestPath(safePath);
+    if (playerLocal && file.syncMode !== 'seed') continue;
+    if ((!playerLocal && !isLauncherManagedProjectPath(safePath)) || isForbiddenProjectManifestPath(safePath)) {
       throw new Error(`Refusing to inspect unmanaged or forbidden project file: ${safePath}`);
     }
     managedFiles.push({

@@ -14,7 +14,7 @@ import { getRuntimeRoot, loadSettings, resolveLauncherRoot, saveSettings } from 
 import { syncProject } from './services/sync.js';
 import { inspectProjectState } from './services/project-state.js';
 import { runProjectLaunch } from './services/project-launch.js';
-import type { AuthState, LauncherManifest, LauncherSettings, SafeMinecraftProfile } from '../shared/types.js';
+import type { AuthState, LauncherManifest, LogReportResult, LauncherSettings, SafeMinecraftProfile } from '../shared/types.js';
 import { LegacyLiveAuthService, extractLegacyLiveCode } from './services/legacy-live-auth.js';
 import { selectAppDirectory } from './services/directory-dialog.js';
 import { applyDisplaySettingsToWindow, createBrowserWindowOptions } from './services/window-settings.js';
@@ -22,6 +22,7 @@ import { createProjectLaunchManager } from './services/project-launch-manager.js
 import { createDiscordRpcClient } from './services/discord-rpc.js';
 import { createDiscordPresenceService } from './services/discord-presence.js';
 import { writeLaunchDiagnostics } from './services/diagnostics.js';
+import { LogReportError, sendLogReport } from './services/log-report.js';
 import { createLauncherUpdateService } from './services/updater.js';
 import { PRODUCT_DISCORD_APPLICATION_ID } from './product-config.js';
 import {
@@ -407,6 +408,36 @@ function registerIpc() {
     const directory = await ensureProjectContentDirectory(context.runtimeRoot, context.projectId, kind);
     const error = await shell.openPath(directory);
     if (error) throw new Error(error);
+  });
+
+  // "ส่ง Logs ให้ Admin": the Minecraft token proves the player's UUID to the server and is redacted from the logs.
+  ipcMain.handle('logs:send', async (_event, projectId: string | undefined, note?: string): Promise<LogReportResult> => {
+    try {
+      const session = await authService.ensureSession().catch(() => {
+        throw new LogReportError('UNAUTHORIZED', 'ล็อกอิน Microsoft ก่อนส่ง log');
+      });
+      const settings = await loadSettings(launcherRoot);
+      const memory = readSystemMemoryInfo();
+      const value = await sendLogReport({
+        rootDir: getRuntimeRoot(settings),
+        projectId,
+        note,
+        launcherVersion: app.getVersion(),
+        baseUrl: manifestBaseUrl,
+        accessToken: session.accessToken,
+        system: {
+          os: `${process.platform} ${process.getSystemVersion()}`,
+          arch: process.arch,
+          totalRamMb: memory.totalMb,
+          allocatedRamMb: settings.memoryMb,
+          electron: process.versions.electron
+        }
+      });
+      return { ok: true, value };
+    } catch (error) {
+      if (error instanceof LogReportError) return { ok: false, error: { code: error.code, message: error.message } };
+      return { ok: false, error: { code: 'UPLOAD_FAILED', message: 'ส่ง log ไม่สำเร็จ' } };
+    }
   });
 
   ipcMain.handle('updater:getState', () => updateService.getState());

@@ -427,6 +427,7 @@ export function MainView({
             settings={settings}
             onSaved={setSettings}
             open={panelOpen}
+            projectId={project?.id}
           />
         )}
         {panel === "shop" && (

@@ -6,6 +6,7 @@ import type {
   LauncherUpdateState,
   LauncherManifest,
   LauncherSettings,
+  LogReportResult,
   ProjectLaunchState,
   ProjectContentImportResult,
   ProjectContentKind,
@@ -60,6 +61,9 @@ export interface LauncherApi {
     };
     onProgress(listener: (progress: ProjectProgressEvent) => void): () => void;
     onLaunchState(listener: (state: ProjectLaunchState) => void): () => void;
+  };
+  logs: {
+    send(projectId?: string, note?: string): Promise<LogReportResult>;
   };
   updater: {
     getState(): Promise<LauncherUpdateState>;
@@ -234,6 +238,11 @@ export const fallbackApi: LauncherApi = {
     },
     onLaunchState() {
       return () => undefined;
+    }
+  },
+  logs: {
+    async send() {
+      return { ok: false, error: { code: 'UPLOAD_FAILED', message: 'This action is available in the BeforeBedtime desktop launcher.' } };
     }
   },
   updater: {

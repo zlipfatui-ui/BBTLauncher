@@ -436,3 +436,4 @@ input.memory-slider {
     animation: none;
   }
 }
+.log-note { resize: vertical; min-height: 72px; font: inherit; }

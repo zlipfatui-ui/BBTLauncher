@@ -300,6 +300,37 @@ describe('project sync', () => {
     }
   });
 
+  it('installs seed shaderpacks once, ignores required ones and keeps the player copy', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-sync-shader-'));
+    const projectRoot = join(root, 'projects', 'northvale');
+    const body = 'northvale mod bytes';
+    const shader = 'shader bytes';
+    const manifest = makeManifest(body);
+    manifest.projects[0].files.push(
+      { path: 'shaderpacks/seeded.zip', url: '/files/seeded.zip', sha256: sha256(shader), size: shader.length, required: true, syncMode: 'seed' },
+      { path: 'shaderpacks/forced.zip', url: '/files/forced.zip', sha256: sha256(shader), size: shader.length, required: true }
+    );
+    const requested: string[] = [];
+    const fetchImpl = async (url: string | URL | Request) => {
+      requested.push(String(url));
+      return new Response(String(url).endsWith('test.jar') ? body : shader);
+    };
+
+    try {
+      await syncProject({ rootDir: root, projectId: 'northvale', manifest, baseUrl: 'https://bbt.example', fetchImpl: fetchImpl as typeof fetch });
+      expect(requested.some((url) => url.endsWith('/files/seeded.zip'))).toBe(true);
+      expect(requested.some((url) => url.endsWith('/files/forced.zip'))).toBe(false);
+
+      await writeFile(join(projectRoot, 'shaderpacks', 'seeded.zip'), 'player tweaked');
+      requested.length = 0;
+      await syncProject({ rootDir: root, projectId: 'northvale', manifest, baseUrl: 'https://bbt.example', fetchImpl: fetchImpl as typeof fetch });
+      expect(requested).toEqual([]);
+      await expect(readFile(join(projectRoot, 'shaderpacks', 'seeded.zip'), 'utf8')).resolves.toBe('player tweaked');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('removes stale required files only when they were previously launcher-managed', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bbt-sync-stale-'));
     const projectRoot = join(root, 'projects', 'northvale');

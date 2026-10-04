@@ -57,8 +57,10 @@ function syncManifestFiles(rootDir: string, projectId: string, files: LauncherFi
   for (const file of files) {
     const safePath = normalizeProjectFilePath(file.path);
     if (shouldBypassPackAuthorManifestFile(rootDir, projectId, safePath)) continue;
-    if (isIgnoredPlayerLocalProjectManifestPath(safePath)) continue;
-    if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
+    // Player-owned roots (shaderpacks) only accept seed entries: installed if missing, never overwritten or pruned.
+    const playerLocal = isIgnoredPlayerLocalProjectManifestPath(safePath);
+    if (playerLocal && file.syncMode !== 'seed') continue;
+    if ((!playerLocal && !isLauncherManagedProjectPath(safePath)) || isForbiddenProjectManifestPath(safePath)) {
       throw new Error(`Refusing to sync unmanaged or forbidden project file: ${safePath}`);
     }
     managedFiles.push({
@@ -71,7 +73,9 @@ function syncManifestFiles(rootDir: string, projectId: string, files: LauncherFi
 }
 
 function resolveProjectFile(rootDir: string, projectId: string, safePath: string): string {
-  if (!isLauncherManagedProjectPath(safePath) || isForbiddenProjectManifestPath(safePath)) {
+  // Seed-only player roots were already filtered in syncManifestFiles.
+  const managed = isLauncherManagedProjectPath(safePath) || isIgnoredPlayerLocalProjectManifestPath(safePath);
+  if (!managed || isForbiddenProjectManifestPath(safePath)) {
     throw new Error(`Refusing to sync unmanaged or forbidden project file: ${safePath}`);
   }
   return assertInsideDirectory(join(rootDir, 'projects', projectId), join(rootDir, 'projects', projectId, safePath));
