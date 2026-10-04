@@ -170,6 +170,27 @@ describe('manifest client', () => {
     expect(() => validateLauncherManifest(unsafe)).toThrow(/forbidden/i);
   });
 
+  it('sends its version and reuses the cached manifest on 304', async () => {
+    const seen: Array<Record<string, string>> = [];
+    let calls = 0;
+    const client = createManifestClient({
+      baseUrl: 'https://bbt.example',
+      launcherVersion: '0.4.1',
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        seen.push({ ...(init?.headers as Record<string, string>) });
+        calls += 1;
+        return calls === 1
+          ? new Response(JSON.stringify(manifest), { headers: { ETag: '"g|v2"' } })
+          : new Response(null, { status: 304 });
+      }) as typeof fetch
+    });
+    const first = await client.refresh();
+    const second = await client.refresh();
+    expect(second).toBe(first);
+    expect(seen[0]).toEqual({ 'X-BBT-Launcher-Version': '0.4.1' });
+    expect(seen[1]).toEqual({ 'X-BBT-Launcher-Version': '0.4.1', 'If-None-Match': '"g|v2"' });
+  });
+
   it('fetches the manifest from /api/launcher/manifest', async () => {
     const requested: string[] = [];
     const client = createManifestClient({

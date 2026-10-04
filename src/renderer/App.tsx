@@ -13,6 +13,8 @@ import { operationError } from "./operation-error";
 import { version } from "../../package.json";
 import "./styles.css";
 
+const MANIFEST_POLL_MS = 120_000;
+
 type Route = "start" | "login" | "main";
 export const initialSettings: LauncherSettings = {
   appDirectory: "",
@@ -123,7 +125,7 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
         if (active)
           setSettings({
             ...next,
-            selectedProject: "sainam",
+            selectedProject: next.selectedProject || "sainam",
             starMotion: next.starMotion ?? true,
           });
       })
@@ -147,6 +149,31 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [api, restored, settingsLoaded]);
+  // Pick up dashboard publishes without a restart: poll every 2 minutes while visible and
+  // re-check when the window regains focus. The server answers 304 while nothing changed.
+  useEffect(() => {
+    let live = true;
+    let lastCheck = 0;
+    const check = () => {
+      if (document.hidden || Date.now() - lastCheck < 15_000) return;
+      lastCheck = Date.now();
+      void api.manifest
+        .refresh()
+        .then((next) => {
+          if (live) setManifest((current) => (current.generatedAt === next.generatedAt ? current : next));
+        })
+        .catch(() => undefined);
+    };
+    const timer = window.setInterval(check, MANIFEST_POLL_MS);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [api]);
 
   useLayoutEffect(() => {
     const refs = {

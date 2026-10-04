@@ -129,16 +129,24 @@ export function validateLauncherManifest(value: unknown): LauncherManifest {
 }
 
 export function createManifestClient({ baseUrl, fetchImpl = fetch, launcherVersion }: ManifestClientOptions) {
+  // The launcher polls; the server answers 304 while this manifest is still current.
+  let cached: { etag: string; manifest: LauncherManifest } | null = null;
   return {
     async refresh(): Promise<LauncherManifest> {
       const url = new URL('/api/launcher/manifest', baseUrl);
-      const response = await fetchImpl(url.toString(), launcherVersion ? { headers: { [LAUNCHER_VERSION_HEADER]: launcherVersion } } : undefined);
+      const headers: Record<string, string> = {};
+      if (launcherVersion) headers[LAUNCHER_VERSION_HEADER] = launcherVersion;
+      if (cached) headers['If-None-Match'] = cached.etag;
+      const response = await fetchImpl(url.toString(), Object.keys(headers).length ? { headers } : undefined);
+      if (response.status === 304 && cached) return cached.manifest;
       if (!response.ok) {
         throw new Error(`Launcher manifest request failed with HTTP ${response.status}.`);
       }
 
       const manifest = validateLauncherManifest(await response.json());
       updateProjectAvailability(manifest);
+      const etag = response.headers?.get?.('ETag');
+      cached = etag ? { etag, manifest } : null;
       return manifest;
     }
   };

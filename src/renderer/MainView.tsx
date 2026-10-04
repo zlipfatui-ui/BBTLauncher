@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type {
   LauncherManifest,
   LauncherSettings,
@@ -52,7 +52,7 @@ export function MainView({
     fallbackManifest.projects.find((item) => item.id === "sainam")!;
   const isSainam = project.id === "sainam";
   const seasonLabel = project.seasonLabel ?? (isSainam ? "Season Test" : "");
-  const game = useProject(api, project, settings.appDirectory);
+  const game = useProject(api, project, settings.appDirectory, manifest.generatedAt);
   const [panel, setPanel] = useState<Panel>("settings"),
     [panelOpen, setPanelOpen] = useState(false),
     [galleryOpen, setGalleryOpen] = useState(false);
@@ -87,6 +87,15 @@ export function MainView({
       setGalleryOpen(false);
     }
   }, [active]);
+  const seenManifest = useRef(manifest.generatedAt);
+  useEffect(() => {
+    const previous = seenManifest.current;
+    seenManifest.current = manifest.generatedAt;
+    // The first real manifest replaces the built-in fallback; only later changes are news.
+    if (previous !== manifest.generatedAt && previous !== fallbackManifest.generatedAt) {
+      setNotice("มีอัปเดตใหม่จากเซิร์ฟเวอร์ โหลดข้อมูลล่าสุดแล้ว");
+    }
+  }, [manifest.generatedAt]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 5000);

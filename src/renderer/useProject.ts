@@ -12,6 +12,8 @@ export function useProject(
   api: LauncherApi,
   project: LauncherProject,
   path: string,
+  /** Changes when a newer manifest arrives; the install state is re-checked in place. */
+  manifestRevision = "",
 ) {
   const [state, setState] = useState<ProjectStateResult | null>(null);
   const [launch, setLaunch] = useState<ProjectLaunchState>({ status: "idle" });
@@ -70,6 +72,14 @@ export function useProject(
       disposeProgress();
     };
   }, [api, project.id]);
+  const lastRevision = useRef(manifestRevision);
+  useEffect(() => {
+    if (lastRevision.current === manifestRevision) return;
+    lastRevision.current = manifestRevision;
+    // Never disturb an install or a running game; the next check after it finishes picks it up.
+    if (!path || operation.current || launch.status !== "idle") return;
+    void refresh();
+  }, [manifestRevision, path, launch.status, refresh]);
   useEffect(() => {
     if (launch.status === "idle" || launch.status === "running")
       setProgress(null);
