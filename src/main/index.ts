@@ -204,6 +204,15 @@ const projectLaunchManager = createProjectLaunchManager({
   }
 });
 
+function isSafeExternalUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function resolveAppIconPath(): string {
   const builtIcon = join(__dirname, '..', '..', 'dist', 'renderer', 'assets', 'images', 'logos', 'BBT.ico');
   if (existsSync(builtIcon)) return builtIcon;
@@ -230,6 +239,18 @@ function createWindow(settings: LauncherSettings): BrowserWindow {
   });
   contentDrawerWindowController.attach(win);
 
+  // The launcher UI never navigates or opens windows itself; links go through shell:openExternal.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+    if (devServerUrl && url.startsWith(devServerUrl)) return;
+    if (url.startsWith('file://')) return;
+    event.preventDefault();
+  });
+
   if (display.fullscreen) {
     win.setFullScreen(true);
   }
@@ -242,6 +263,28 @@ function createWindow(settings: LauncherSettings): BrowserWindow {
   }
 
   return win;
+}
+
+/** Windows locks jars the game has open, so file changes wait until that project's game has exited. */
+function assertProjectGameStopped(projectId: string) {
+  const launch = projectLaunchManager.getState(projectId);
+  if (launch.status !== 'idle') throw new Error('Stop Minecraft before changing game files.');
+}
+
+/** The window can close mid-download; progress is best-effort and must never fail a sync. */
+function sendProgress(sender: Electron.WebContents, payload: unknown) {
+  if (!sender.isDestroyed()) sender.send('project:progress', payload);
+}
+
+function syncProgressReporter(sender: Electron.WebContents, projectId: string) {
+  return (progress: { file: string; downloadedBytes: number; totalBytes: number }) =>
+    sendProgress(sender, createProjectProgressEvent(projectId, {
+      phase: 'SYNCING',
+      percent: progress.totalBytes
+        ? Math.min(100, Math.round((progress.downloadedBytes / progress.totalBytes) * 100))
+        : 100,
+      message: `Downloading ${progress.file}`
+    }));
 }
 
 function registerIpc() {
@@ -284,6 +327,7 @@ function registerIpc() {
 
   runtimeHandle('project:sync', async (event, projectId: string) => {
     assertProjectAvailable(projectId);
+    assertProjectGameStopped(projectId);
     const settings = await loadSettings(launcherRoot);
     const runtimeRoot = getRuntimeRoot(settings);
     const manifest = await manifestClient.refresh();
@@ -293,14 +337,7 @@ function registerIpc() {
       projectId,
       manifest,
       baseUrl: manifestBaseUrl,
-      onProgress: (progress) =>
-        event.sender.send('project:progress', createProjectProgressEvent(projectId, {
-          phase: 'SYNCING',
-          percent: progress.totalBytes
-            ? Math.min(100, Math.round((progress.downloadedBytes / progress.totalBytes) * 100))
-            : 100,
-          message: `Downloading ${progress.file}`
-        }))
+      onProgress: syncProgressReporter(event.sender, projectId)
     });
   });
 
@@ -326,17 +363,10 @@ function registerIpc() {
               projectId,
               manifest,
               baseUrl: manifestBaseUrl,
-              onProgress: (progress) =>
-                event.sender.send('project:progress', createProjectProgressEvent(projectId, {
-                  phase: 'SYNCING',
-                  percent: progress.totalBytes
-                    ? Math.min(100, Math.round((progress.downloadedBytes / progress.totalBytes) * 100))
-                    : 100,
-                  message: `Downloading ${progress.file}`
-                }))
+              onProgress: syncProgressReporter(event.sender, projectId)
             }),
           onProgress: (progress) =>
-            event.sender.send('project:progress', createProjectProgressEvent(projectId, progress))
+            sendProgress(event.sender, createProjectProgressEvent(projectId, progress))
         })
       );
     })
@@ -376,6 +406,7 @@ function registerIpc() {
   });
 
   runtimeHandle('project:content:import', async (_event, projectId, kind, sourcePaths, overwrite) => {
+    assertProjectGameStopped(projectId);
     const context = await getProjectContentContext(projectId);
     return importProjectContent({
       rootDir: context.runtimeRoot,
@@ -388,6 +419,7 @@ function registerIpc() {
   });
 
   runtimeHandle('project:content:trash', async (_event, projectId, kind, relativePath) => {
+    assertProjectGameStopped(projectId);
     const context = await getProjectContentContext(projectId);
     await trashProjectContent({
       rootDir: context.runtimeRoot,
@@ -400,6 +432,7 @@ function registerIpc() {
   });
 
   runtimeHandle('project:content:setEnabled', async (_event, projectId, kind, relativePath, enabled) => {
+    assertProjectGameStopped(projectId);
     const context = await getProjectContentContext(projectId);
     await setProjectContentEnabled({
       rootDir: context.runtimeRoot,
@@ -453,7 +486,10 @@ function registerIpc() {
   ipcMain.handle('updater:download', () => updateService.download());
   ipcMain.handle('updater:quitAndInstall', () => updateService.quitAndInstall());
 
-  ipcMain.handle('shell:openExternal', (_event, url: string) => shell.openExternal(url));
+  ipcMain.handle('shell:openExternal', (_event, url: string) => {
+    if (!isSafeExternalUrl(url)) throw new Error('Refusing to open a non-https link.');
+    return shell.openExternal(url);
+  });
   ipcMain.handle('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
   ipcMain.handle('window:toggleMaximize', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -483,7 +519,19 @@ function registerIpc() {
   ipcMain.handle('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
 }
 
+// Two launchers would sync and write the same game folder at once, and runtimeOperations only guards one process.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) app.quit();
+
+app.on('second-instance', () => {
+  const [win] = BrowserWindow.getAllWindows();
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.focus();
+});
+
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
   safelyUpdateDiscordPresence(() => discordPresence.start());
   registerIpc();
   createWindow(await loadSettings(launcherRoot));

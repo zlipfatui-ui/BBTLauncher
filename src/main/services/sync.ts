@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, open, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { LauncherFile, LauncherFileSyncMode, LauncherManifest, SyncResult } from '../../shared/types.js';
 import { normalizeProjectFilePath, assertInsideDirectory } from './path-safety.js';
-import { sha256Buffer, sha256File } from './hash.js';
+import { sha256File } from './hash.js';
 import {
   isForbiddenProjectManifestPath,
   isIgnoredPlayerLocalProjectManifestPath,
@@ -30,6 +31,8 @@ export interface SyncProjectOptions {
   manifest: LauncherManifest;
   baseUrl: string;
   fetchImpl?: typeof fetch;
+  /** Abandon a download that receives no bytes for this long. */
+  stallTimeoutMs?: number;
   onProgress?: (progress: { file: string; downloadedBytes: number; totalBytes: number }) => void;
 }
 
@@ -146,9 +149,60 @@ async function removeRetiredSaiNamMigrationFiles(
   }
 }
 
-async function responseBytes(response: Response): Promise<Buffer> {
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+/** A download that makes no progress for this long is abandoned instead of hanging the whole launcher. */
+const DOWNLOAD_STALL_MS = 30_000;
+
+/** Streams a response to disk, hashing as it goes so large mods are never held in memory. */
+async function downloadVerified(
+  fetchImpl: typeof fetch,
+  requestUrl: string,
+  file: LauncherFile,
+  tempPath: string,
+  stallMs: number,
+  onBytes: (bytes: number) => void
+): Promise<number> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), stallMs);
+  };
+  await mkdir(dirname(tempPath), { recursive: true });
+  const hash = createHash('sha256');
+  let received = 0;
+  try {
+    arm();
+    const response = await fetchImpl(requestUrl, { signal: controller.signal });
+    if (!response.ok) throw new Error(`Failed to download ${file.path}: HTTP ${response.status}`);
+    const handle = await open(tempPath, 'w');
+    try {
+      if (response.body) {
+        const reader = response.body.getReader();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          arm();
+          hash.update(value);
+          await handle.write(value);
+          received += value.byteLength;
+          onBytes(value.byteLength);
+        }
+      }
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    await rm(tempPath, { force: true });
+    if (controller.signal.aborted) throw new Error(`Download stalled: ${file.path}`);
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  if (received !== file.size || hash.digest('hex').toUpperCase() !== file.sha256.toUpperCase()) {
+    await rm(tempPath, { force: true });
+    throw new Error(`Downloaded file failed SHA256 verification: ${file.path}`);
+  }
+  return received;
 }
 
 export async function syncProject({
@@ -157,6 +211,7 @@ export async function syncProject({
   manifest,
   baseUrl,
   fetchImpl = fetch,
+  stallTimeoutMs = DOWNLOAD_STALL_MS,
   onProgress
 }: SyncProjectOptions): Promise<SyncResult> {
   const project = findProject(manifest, projectId);
@@ -209,27 +264,17 @@ export async function syncProject({
 
   for (const { file, path: safePath, destination } of pendingFiles) {
     const requestUrl = new URL(file.url, baseUrl).toString();
-    const response = await fetchImpl(requestUrl);
-    if (!response.ok) throw new Error(`Failed to download ${file.path}: HTTP ${response.status}`);
-
-    const bytes = await responseBytes(response);
-    const actualHash = sha256Buffer(bytes);
-    if (bytes.byteLength !== file.size || actualHash !== file.sha256.toUpperCase()) {
-      throw new Error(`Downloaded file failed SHA256 verification: ${file.path}`);
-    }
-
     const tempPath = assertInsideDirectory(join(rootDir, 'tmp'), join(rootDir, 'tmp', projectId, safePath));
-    await mkdir(dirname(tempPath), { recursive: true });
-    await writeFile(tempPath, bytes);
-    await readFile(tempPath);
+    await downloadVerified(fetchImpl, requestUrl, file, tempPath, stallTimeoutMs, (bytes) => {
+      downloadedBytes += bytes;
+      onProgress?.({ file: file.path, downloadedBytes, totalBytes });
+    });
 
     await mkdir(dirname(destination), { recursive: true });
     await rm(destination, { force: true });
     await rename(tempPath, destination);
 
     downloaded += 1;
-    downloadedBytes += bytes.byteLength;
-    onProgress?.({ file: file.path, downloadedBytes, totalBytes });
   }
 
   await removeStaleManagedRequiredFiles(rootDir, projectId, manifestFiles, managedIndex);

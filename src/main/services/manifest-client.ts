@@ -11,6 +11,9 @@ import { updateProjectAvailability } from './project-availability.js';
 /** Tells the server which manifest shape this launcher understands (dynamic projects, seed shaderpacks). */
 export const LAUNCHER_VERSION_HEADER = 'X-BBT-Launcher-Version';
 
+/** The manifest is tiny; if the server has not answered by now, fail so the UI can offer a retry. */
+const MANIFEST_TIMEOUT_MS = 15_000;
+
 export interface ManifestClientOptions {
   baseUrl: string;
   fetchImpl?: typeof fetch;
@@ -137,7 +140,7 @@ export function createManifestClient({ baseUrl, fetchImpl = fetch, launcherVersi
       const headers: Record<string, string> = {};
       if (launcherVersion) headers[LAUNCHER_VERSION_HEADER] = launcherVersion;
       if (cached) headers['If-None-Match'] = cached.etag;
-      const response = await fetchImpl(url.toString(), Object.keys(headers).length ? { headers } : undefined);
+      const response = await fetchImpl(url.toString(), { headers, signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS) });
       if (response.status === 304 && cached) return cached.manifest;
       if (!response.ok) {
         throw new Error(`Launcher manifest request failed with HTTP ${response.status}.`);

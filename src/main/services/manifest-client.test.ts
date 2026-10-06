@@ -206,4 +206,17 @@ describe('manifest client', () => {
     await expect(client.refresh()).resolves.toEqual(manifest);
     expect(requested).toEqual(['https://bbt.example/api/launcher/manifest']);
   });
+
+  it('passes an abort signal so a hung server cannot block the launcher', async () => {
+    let signal: AbortSignal | null | undefined;
+    const client = createManifestClient({
+      baseUrl: 'https://bbt.example',
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        signal = init?.signal;
+        return new Response(JSON.stringify(manifest));
+      }) as typeof fetch
+    });
+    await client.refresh();
+    expect(signal).toBeInstanceOf(AbortSignal);
+  });
 });

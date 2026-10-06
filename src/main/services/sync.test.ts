@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { syncProject } from './sync';
 import type { LauncherManifest } from '../../shared/types';
@@ -114,6 +115,32 @@ async function writeManagedIndex(root: string, projectId: string, files: Array<{
     `${JSON.stringify({ version: 1, files }, null, 2)}\n`
   );
 }
+
+describe('project sync downloads', () => {
+  it('removes the temp file when verification fails', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-tmpclean-'));
+    try {
+      await expect(syncProject({
+        rootDir: root, projectId: 'northvale', manifest: makeManifest('expected'),
+        baseUrl: 'https://bbt.example', fetchImpl: async () => new Response('wrong')
+      })).rejects.toThrow(/sha256/i);
+      expect(existsSync(join(root, 'tmp', 'northvale', 'mods', 'test.jar'))).toBe(false);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('abandons a download that stalls instead of hanging forever', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-stall-'));
+    try {
+      const fetchImpl = ((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      })) as unknown as typeof fetch;
+      await expect(syncProject({
+        rootDir: root, projectId: 'northvale', manifest: makeManifest('body'),
+        baseUrl: 'https://bbt.example', fetchImpl, stallTimeoutMs: 50
+      })).rejects.toThrow(/stalled/i);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+});
 
 describe('project sync', () => {
   it('restores resource pack seeds when reinstalling a deleted project even if metadata remains', async () => {
