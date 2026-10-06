@@ -141,9 +141,25 @@ export const fallbackManifest: LauncherManifest = {
   ]
 };
 
+/** Dev-only: `?scenario=` picks which game/updater state the browser preview shows. */
+export const devScenarios = ['install', 'ready', 'repair', 'update', 'running', 'launcher-update', 'launcher-downloading'] as const;
+export function devScenario(): string {
+  return import.meta.env.DEV ? new URLSearchParams(location.search).get('scenario') ?? 'install' : 'install';
+}
+
 export const fallbackApi: LauncherApi = {
   auth: {
     async getState() {
+      // Dev-only: `?signedin` previews the main screen in a plain browser.
+      if (import.meta.env.DEV && new URLSearchParams(location.search).has('signedin')) {
+        return {
+          ok: true,
+          value: {
+            status: 'signed-in',
+            profile: { id: 'preview', name: 'Preview', avatarInitial: 'P', provider: 'microsoft' }
+          }
+        };
+      }
       return {
         ok: true,
         value: { status: 'signed-out', profile: null }
@@ -161,12 +177,17 @@ export const fallbackApi: LauncherApi = {
     }
   },
   system: {
-    async getMemoryInfo() { return desktopUnavailable(); }
+    async getMemoryInfo() {
+      // Dev-only: pretend to be a 16 GB machine so the RAM slider can be previewed.
+      if (import.meta.env.DEV) return { ok: true, value: { totalMb: 16384, maxMb: 12288 } };
+      return desktopUnavailable();
+    }
   },
   settings: {
     async load() {
       return {
-        appDirectory: '',
+        // Dev-only: a mock folder lets the preview exercise install/repair/ready states.
+        appDirectory: import.meta.env.DEV ? 'D:\BeforeBedtime (preview)' : '',
         width: 1280,
         height: 720,
         fullscreen: false,
@@ -197,10 +218,14 @@ export const fallbackApi: LauncherApi = {
   },
   project: {
     async getState() {
+      const scenario = devScenario();
+      if (scenario === 'repair') return { state: 'update', missing: 3, changed: 2, stale: 0 };
+      if (scenario === 'update') return { state: 'update', missing: 0, changed: 0, stale: 0 };
+      if (scenario === 'ready' || scenario === 'running') return { state: 'ready', missing: 0, changed: 0, stale: 0 };
       return { state: 'install', missing: 0, changed: 0, stale: 0 };
     },
     async getLaunchState() {
-      return { status: 'idle' };
+      return devScenario() === 'running' ? { status: 'running', projectId: 'sainam' } : { status: 'idle' };
     },
     async sync() {
       return { status: 'ready', downloaded: 0, skipped: 0, totalBytes: 0, downloadedBytes: 0 };
@@ -249,6 +274,9 @@ export const fallbackApi: LauncherApi = {
   },
   updater: {
     async getState() {
+      const scenario = devScenario();
+      if (scenario === 'launcher-update') return { status: 'downloaded', version: '0.5.0' };
+      if (scenario === 'launcher-downloading') return { status: 'downloading', version: '0.5.0', percent: 42 };
       return { status: 'idle' };
     },
     async check() {

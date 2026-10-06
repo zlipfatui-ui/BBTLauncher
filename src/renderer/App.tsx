@@ -9,6 +9,7 @@ import { resolveRendererAssetUrl } from "./assets";
 import { Icon, IconDefinitions, Starfield } from "./Visuals";
 import { move, resetMotion } from "./motion";
 import { MainView } from "./MainView";
+import { DevScenarios } from "./DevScenarios";
 import { operationError } from "./operation-error";
 import { version } from "../../package.json";
 import "./styles.css";
@@ -608,6 +609,7 @@ export function App({ api = getLauncherApi() }: { api?: LauncherApi }) {
             onToggleStars={toggleStars}
           />
         </div>
+        {import.meta.env.DEV && !window.bbtLauncher && <DevScenarios />}
         {bootError && (
           <div className="toast" role="alert">
             {bootError}

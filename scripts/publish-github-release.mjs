@@ -7,7 +7,12 @@ import { hashStream, parseReleaseArgs, resolveReleaseDirectory, rootDir, validat
 const repository = '/repos/zlipfatui-ui/BBTLauncher';
 
 export function releaseNotes(version) {
-  return `BeforeBedtime Launcher ${version}\n\n- Redesigned black-and-white launcher with local fonts and artwork.\n- Persistent animated starfield and smooth, interruptible navigation, drawers, and button motion, with reduced-motion support.\n- Screenshot gallery for each project's real screenshots, with image preview and file/folder actions.\n- General text and images no longer select or drag accidentally; inputs and content file drops remain usable.\n- RAM settings adapt to each machine's total memory and preserve valid saved allocations.\n- Northvale remains locked; SaiNam, account sign-in, game management, and launcher updates remain connected to the existing launcher data.`;
+  return `BeforeBedtime Launcher ${version}
+
+- New launcher design: full-colour world artwork fills the window, a slim icon rail expands on hover, and Launch is a single button in the bottom-right corner.
+- Spec chips (screenshots, Minecraft, Forge, settings, Starlight) share one row at the top right; every control uses the same smoked-glass look.
+- Smoother hover and press motion on every button, including the Launch and update icons, with reduced-motion support.
+- Settings opens as a rounded, scrollable sheet that reaches the bug-report section, and the window-size picker matches the theme.`;
 }
 
 export async function publishRelease({ version, commit, assets, token, fetchImpl = fetch, log = console.log }) {

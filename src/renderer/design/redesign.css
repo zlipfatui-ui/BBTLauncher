@@ -1,0 +1,1403 @@
+/* ============================================================
+   BeforeBedtime — "Stage" layout
+   The world's own artwork (in colour) is the whole screen.
+   Interface = soft smoked-glass panels and off-white type:
+   never pure black blocks, never pure white blocks.
+   Slim rail on the left expands on hover; Launch is a frosted
+   capsule bottom-right; sheets slide in with rounded edges.
+   ============================================================ */
+:root {
+  --ink: #0f1012;
+  --paper: #eceef0;
+  --paper-dim: #eceef0a3;
+  --smoke: #0f101294;
+  --smoke-solid: #121316f2;
+  --edge: #ffffff24;
+  --edge-strong: #ffffff52;
+  --lift: #ffffff1f;
+  --soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --t: 340ms;
+}
+
+html,
+body,
+#root,
+.entry-page,
+.entry-page .entry-shell {
+  background: var(--ink);
+}
+.entry-page .entry-light {
+  background: radial-gradient(
+    ellipse at center,
+    #ffffff10 0%,
+    #ffffff04 34%,
+    transparent 68%
+  );
+}
+::selection {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* ---------- Titlebar ---------- */
+.entry-page .titlebar {
+  background: transparent;
+  border-bottom: 0;
+  font-size: 10px;
+  color: var(--paper-dim);
+}
+.entry-page .window-controls button:hover {
+  background: var(--lift);
+  color: var(--paper);
+}
+.entry-page .window-controls button[aria-label="Close"]:hover {
+  background: #ffffff33;
+}
+
+/* ---------- Motion on everything pressable ---------- */
+.entry-page :is(button, a, [role="button"]) {
+  transition:
+    transform var(--t) var(--soft),
+    background-color var(--t) var(--soft),
+    color 220ms ease,
+    border-color var(--t) var(--soft),
+    box-shadow 500ms var(--soft),
+    opacity var(--t) ease !important;
+}
+.entry-page :is(button, a, [role="button"]):active:not(:disabled) {
+  transform: scale(0.96) !important;
+  transition-duration: 100ms !important;
+}
+.entry-page :is(button, a, [role="button"]) svg {
+  transition: transform 520ms var(--soft);
+}
+.entry-page :is(button, a, input, select):focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+/* Primary: frosted capsule, lets the artwork's colour through. */
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .launcher-update-button, .directory-apply, .launch-button) {
+  color: var(--paper);
+  background: #ffffff29;
+  border: 1px solid var(--edge-strong);
+  border-radius: 999px;
+  backdrop-filter: blur(16px);
+}
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .launcher-update-button, .directory-apply, .launch-button)
+  :is(span, strong, small) {
+  color: inherit;
+}
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .launcher-update-button, .directory-apply, .launch-button):hover:not(:disabled) {
+  background: #ffffff42;
+  border-color: #ffffff8c;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 44px -12px #000000b3;
+}
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .launcher-update-button, .launch-button):disabled {
+  background: #0f101266;
+  color: var(--paper-dim);
+  border-color: var(--edge);
+  opacity: 1;
+}
+/* Secondary: quiet outline. */
+.entry-page
+  :is(.panel-button.secondary, .manage-button, .directory-actions button:not(.directory-apply), .login-cancel, .gallery-retry) {
+  background: #0f101259;
+  color: var(--paper);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+}
+.entry-page
+  :is(.panel-button.secondary, .manage-button, .directory-actions button:not(.directory-apply), .login-cancel, .gallery-retry):hover:not(:disabled) {
+  background: #ffffff24;
+  border-color: var(--edge-strong);
+}
+
+/* ============================================================
+   START + LOGIN
+   ============================================================ */
+.entry-page .entry-wordmark h1 {
+  text-shadow: 0 0 50px #ffffff2e;
+}
+.entry-page .welcome-family {
+  color: var(--paper);
+  letter-spacing: 0.5em;
+}
+/* Start: just the words and an underline that stretches on hover. */
+.entry-page .start-button {
+  width: auto;
+  min-width: 190px;
+  margin-top: 26px;
+  padding: 11px 22px 16px;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  color: var(--paper);
+  letter-spacing: 0.14em;
+}
+.entry-page .start-button:hover:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  transform: translateY(-2px);
+}
+.entry-page .start-button::after {
+  background: var(--paper);
+}
+.entry-page .start-switch-account {
+  color: var(--paper-dim);
+}
+.entry-page .start-switch-account:hover {
+  color: var(--paper);
+}
+.entry-page .entry-back {
+  padding: 8px 16px 8px 12px;
+  border-radius: 999px;
+  color: var(--paper-dim);
+}
+.entry-page .entry-back:hover {
+  background: var(--lift);
+  color: var(--paper);
+}
+.entry-page .entry-back svg {
+  transform: rotate(180deg);
+}
+.entry-page .entry-back:hover svg {
+  transform: rotate(180deg) translateX(4px);
+}
+.entry-page .login-content {
+  padding: 38px 36px 32px;
+  border: 1px solid var(--edge);
+  border-radius: 28px;
+  background: #121316b3;
+  backdrop-filter: blur(22px);
+  box-shadow: 0 40px 100px -40px #000;
+}
+.entry-page .login-description,
+.entry-page .login-consent {
+  color: var(--paper-dim);
+}
+.entry-page .microsoft-login {
+  min-height: 56px;
+  padding: 0 22px;
+}
+.entry-page .microsoft-login:hover:not(:disabled) .login-arrow {
+  transform: translateX(5px);
+}
+.entry-page .login-consent a {
+  color: var(--paper);
+  text-decoration: underline;
+  text-decoration-color: var(--edge-strong);
+  text-underline-offset: 3px;
+}
+.entry-page :is(.login-consent input, .switch-row input, .content-item input) {
+  accent-color: var(--paper);
+}
+.entry-page .login-feedback {
+  border: 1px solid var(--edge);
+  border-radius: 18px;
+  background: #0f10124d;
+}
+.entry-page .entry-motion-toggle,
+.entry-page .social-links a {
+  border-radius: 999px;
+  color: var(--paper-dim);
+}
+.entry-page .entry-motion-toggle:hover,
+.entry-page .social-links a:hover {
+  color: var(--paper);
+  background: var(--lift);
+}
+
+/* ============================================================
+   MAIN — the stage
+   ============================================================ */
+.entry-page .launcher.embedded-main {
+  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.entry-page .launcher.embedded-main > .workspace {
+  grid-area: 1 / 1 / 2 / 3;
+}
+.entry-page .launcher .workspace {
+  position: relative;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* --- Artwork, in full colour --- */
+.entry-page .launcher .world-feature {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.entry-page .launcher .hero-image {
+  filter: saturate(1.08) brightness(0.94);
+  transform: scale(1.03);
+  transition: transform 3200ms var(--soft);
+}
+.entry-page .launcher .world-feature:hover .hero-image {
+  transform: scale(1.065);
+}
+.entry-page .launcher .hero-shade {
+  background:
+    linear-gradient(0deg, #0f1012eb 0%, #0f101299 24%, transparent 55%),
+    linear-gradient(90deg, #0f1012cc 0%, #0f101266 22%, transparent 52%),
+    linear-gradient(180deg, #0f101266 0%, transparent 18%);
+}
+.entry-page .launcher .corner-star,
+.entry-page .launcher .world-symbol,
+.entry-page .launcher .hero-signature,
+.entry-page .launcher .hero-top .edition {
+  display: none;
+}
+.entry-page .launcher .hero-top {
+  top: 74px;
+  left: 124px;
+}
+.entry-page .launcher .hero-top .season {
+  padding: 6px 14px;
+  border: 1px solid var(--edge-strong);
+  border-radius: 999px;
+  background: #0f101266;
+  backdrop-filter: blur(12px);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.entry-page .launcher .hero-copy {
+  left: 124px;
+  right: auto;
+  bottom: 44px;
+  max-width: 520px;
+}
+.entry-page .launcher .hero-copy h2 {
+  font-family: "Barlow Condensed", Plex, sans-serif;
+  font-size: clamp(72px, 12vw, 168px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 0.88;
+  color: var(--paper);
+  text-shadow: 0 8px 50px #00000080;
+  margin-bottom: 14px;
+}
+.entry-page .launcher .world-tagline {
+  color: var(--paper);
+  font-size: 18px;
+  letter-spacing: 0;
+}
+.entry-page .launcher .world-description {
+  color: var(--paper-dim);
+  letter-spacing: 0;
+  max-width: 440px;
+}
+.entry-page .launcher .text-button {
+  margin-top: 8px;
+  padding: 10px 18px 10px 20px;
+  border: 1px solid var(--edge-strong);
+  border-radius: 999px;
+  background: #0f101266;
+  backdrop-filter: blur(12px);
+  color: var(--paper);
+}
+.entry-page .launcher .text-button:hover {
+  background: #ffffff33;
+}
+.entry-page .launcher .text-button:hover svg {
+  transform: translateX(5px);
+}
+
+/* --- Heading + spec chips, floating top --- */
+.entry-page .launcher .page-heading {
+  position: absolute;
+  z-index: 3;
+  top: 30px;
+  left: 124px;
+  right: 32px;
+  padding: 0;
+  pointer-events: none;
+}
+.entry-page .launcher .page-heading > * {
+  pointer-events: auto;
+}
+.entry-page .launcher .page-heading h1 {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--paper);
+  text-shadow: 0 2px 20px #00000099;
+}
+.entry-page .launcher .page-heading h1 span {
+  color: inherit;
+}
+.entry-page .launcher .page-heading p {
+  display: none;
+}
+.entry-page .launcher .heading-actions {
+  position: absolute;
+  right: 0;
+  top: 52px;
+  gap: 8px;
+}
+.entry-page .launcher .ambience-button {
+  height: 34px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: #0f101259;
+  backdrop-filter: blur(12px);
+  color: var(--paper-dim);
+}
+.entry-page .launcher .ambience-button[aria-pressed="true"] {
+  color: var(--paper);
+  border-color: var(--edge-strong);
+}
+.entry-page .launcher .ambience-button:hover {
+  background: #ffffff29;
+  color: var(--paper);
+}
+.entry-page .launcher .ambience-button:hover svg {
+  transform: rotate(90deg);
+}
+
+.entry-page .launcher .world-info {
+  position: absolute;
+  z-index: 3;
+  top: 22px;
+  right: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+.entry-page .launcher .world-info-title {
+  display: none;
+}
+.entry-page .launcher .world-info > :is(.world-spec, .screenshot-entry, .info-settings) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: #0f101270;
+  backdrop-filter: blur(14px);
+}
+.entry-page .launcher .world-spec span {
+  color: var(--paper-dim);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.entry-page .launcher .screenshot-entry {
+  padding: 0 14px 0 6px;
+  color: var(--paper);
+}
+.entry-page .launcher .screenshot-entry:hover,
+.entry-page .launcher .info-settings:hover {
+  background: #ffffff29;
+  border-color: var(--edge-strong);
+  transform: none;
+}
+.entry-page .launcher .screenshot-entry > :is(span:first-child, img) {
+  border-radius: 999px;
+  overflow: hidden;
+}
+.entry-page .launcher .info-settings {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+.entry-page .launcher .info-settings:hover svg {
+  transform: rotate(60deg);
+}
+
+/* --- Launch: status above, capsule below, bottom-right --- */
+.entry-page .launcher .launch-dock {
+  position: absolute;
+  z-index: 3;
+  right: 36px;
+  bottom: 40px;
+  left: auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+  min-height: 0;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+.entry-page .launcher .launch-details {
+  align-items: flex-end;
+  text-align: right;
+  text-shadow: 0 2px 18px #000000b3;
+}
+.entry-page .launcher .install-state {
+  justify-content: flex-end;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--paper);
+}
+.entry-page .launcher .status-dot {
+  background: var(--paper);
+  box-shadow: 0 0 0 4px #ffffff24;
+  animation: stage-breathe 2.8s ease-in-out infinite;
+}
+.entry-page .launcher .launch-details p {
+  color: var(--paper-dim);
+  justify-content: flex-end;
+}
+.entry-page .launcher .progress-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: #ffffff2b;
+  overflow: hidden;
+}
+.entry-page .launcher .progress-track progress {
+  width: 100%;
+  accent-color: var(--paper);
+}
+.entry-page .launcher .launch-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.entry-page .launcher .manage-button {
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+}
+.entry-page .launcher .manage-button span {
+  display: none;
+}
+.entry-page .launcher .launch-button {
+  min-width: 330px;
+  min-height: 72px;
+  padding: 0 34px 0 10px;
+  justify-content: flex-start;
+  gap: 18px;
+}
+.entry-page .launcher .launch-button > svg:first-child {
+  width: 52px;
+  height: 52px;
+  padding: 15px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+}
+.entry-page .launcher .launch-button strong {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.entry-page .launcher .launch-button small {
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+.entry-page .launcher .launch-button .launch-spark {
+  display: none;
+}
+.entry-page .launcher .launch-button:hover:not(:disabled) > svg:first-child {
+  transform: scale(1.12);
+}
+.entry-page .launcher .launch-button:disabled > svg:first-child {
+  background: #ffffff2e;
+  color: var(--paper-dim);
+}
+
+/* ============================================================
+   RAIL — slim icons, expands on hover
+   ============================================================ */
+.entry-page .launcher .sidebar {
+  position: absolute;
+  z-index: 6;
+  top: 52px;
+  left: 16px;
+  bottom: 16px;
+  width: 64px;
+  margin: 0;
+  padding: 14px 8px;
+  border: 1px solid var(--edge);
+  border-radius: 32px;
+  background: var(--smoke);
+  backdrop-filter: blur(22px);
+  overflow: hidden;
+  gap: 4px;
+  transition:
+    width 460ms var(--soft),
+    border-radius 460ms var(--soft),
+    background-color 300ms ease;
+}
+.entry-page .launcher .sidebar:is(:hover, :focus-within) {
+  width: 244px;
+  border-radius: 28px;
+  background: var(--smoke-solid);
+}
+.entry-page .launcher .sidebar :is(strong, small, span:not(.avatar):not(.project-monogram)) {
+  white-space: nowrap;
+}
+.entry-page .launcher .sidebar .brand {
+  width: 100%;
+  padding: 4px 6px 14px;
+  gap: 12px;
+}
+.entry-page .launcher .sidebar .brand:hover {
+  opacity: 0.8;
+}
+.entry-page .launcher .sidebar-rule {
+  height: 1px;
+  margin: 8px 6px;
+  background: var(--edge);
+}
+.entry-page .launcher .library-label {
+  display: none;
+}
+.entry-page .launcher .projects,
+.entry-page .launcher .utility-nav {
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+}
+.entry-page .launcher .project-button,
+.entry-page .launcher .utility-nav button,
+.entry-page .launcher .account {
+  width: 100%;
+  height: 48px;
+  padding: 0 8px;
+  gap: 14px;
+  border: 1px solid transparent;
+  border-radius: 24px;
+  background: transparent;
+  color: var(--paper);
+}
+.entry-page .launcher .project-button img,
+.entry-page .launcher .project-monogram {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.entry-page .launcher .project-button:hover:not(:disabled),
+.entry-page .launcher .utility-nav button:hover,
+.entry-page .launcher .account:hover {
+  background: var(--lift);
+  transform: none;
+}
+.entry-page .launcher .project-button.selected {
+  background: #ffffff2e;
+  border-color: var(--edge-strong);
+  box-shadow: none;
+}
+.entry-page .launcher .project-button small,
+.entry-page .launcher .account small,
+.entry-page .launcher .utility-nav small {
+  color: var(--paper-dim);
+}
+.entry-page .launcher .project-dot {
+  display: none;
+}
+.entry-page .launcher .project-locked {
+  opacity: 0.45;
+}
+.entry-page .launcher .utility-nav button svg {
+  flex: none;
+  width: 22px;
+  margin: 0 5px;
+}
+.entry-page .launcher .utility-nav button:hover svg {
+  transform: scale(1.14);
+}
+.entry-page .launcher .sidebar-bottom {
+  margin-top: auto;
+  gap: 6px;
+}
+.entry-page .launcher .social-caption,
+.entry-page .launcher .sidebar-bottom .social-links,
+.entry-page .launcher .version {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  margin: 0;
+  transition:
+    opacity 360ms ease,
+    max-height 460ms var(--soft);
+}
+.entry-page .launcher .sidebar:is(:hover, :focus-within) :is(.social-caption, .version) {
+  opacity: 1;
+  max-height: 24px;
+}
+.entry-page .launcher .sidebar:is(:hover, :focus-within) .social-links {
+  opacity: 1;
+  max-height: 52px;
+}
+.entry-page .launcher .avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+}
+.entry-page .launcher .account > svg {
+  display: none;
+}
+
+/* ============================================================
+   SHEETS (Settings, Content, Account, Details)
+   ============================================================ */
+.entry-page .drawer-backdrop {
+  background: #0f101270;
+  backdrop-filter: blur(6px);
+}
+.entry-page .drawer {
+  top: 12px !important;
+  right: 12px;
+  bottom: 12px;
+  height: auto;
+  border: 1px solid var(--edge);
+  border-radius: 28px;
+  background: var(--smoke-solid);
+  backdrop-filter: blur(26px);
+  box-shadow: 0 40px 120px -30px #000;
+  overflow: hidden;
+}
+.entry-page .drawer-header {
+  border-bottom: 0;
+  padding-bottom: 6px;
+}
+.entry-page .drawer-header h2 {
+  font-size: 24px;
+  letter-spacing: 0;
+}
+.entry-page .drawer-header p {
+  color: var(--paper-dim);
+}
+.entry-page .icon-button {
+  border-radius: 50%;
+  border: 1px solid transparent;
+}
+.entry-page .icon-button:hover {
+  background: var(--lift);
+  border-color: var(--edge);
+}
+.entry-page .drawer-header .icon-button:hover svg {
+  transform: rotate(90deg);
+}
+.entry-page .setting-section {
+  margin: 0 0 10px;
+  padding: 20px;
+  border: 0;
+  border-radius: 22px;
+  background: #ffffff0d;
+}
+.entry-page .section-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--paper);
+}
+.entry-page :is(.select-field, .directory-path, .search-field input) {
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+  background: #0f101299;
+}
+.entry-page :is(.select-field, .search-field input):hover {
+  border-color: var(--edge-strong);
+}
+.entry-page :is(.select-field, .search-field input):focus {
+  outline: none;
+  border-color: #ffffff8c;
+  box-shadow: 0 0 0 4px #ffffff14;
+}
+.entry-page .memory-slider {
+  accent-color: var(--paper);
+}
+.entry-page .panel-button {
+  min-height: 52px;
+  font-weight: 600;
+}
+.entry-page .panel-button:hover:not(:disabled) svg {
+  transform: translateX(4px);
+}
+.entry-page .detail-row {
+  border-bottom: 1px solid var(--edge);
+}
+.entry-page .details-image {
+  border-radius: 20px;
+}
+.entry-page .toast {
+  border: 1px solid var(--edge);
+  border-radius: 18px;
+  background: var(--smoke-solid);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 70px -20px #000;
+  animation: stage-toast 520ms var(--soft) both;
+}
+
+@keyframes stage-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px #ffffff1f;
+  }
+  50% {
+    box-shadow: 0 0 0 8px #ffffff0a;
+  }
+}
+@keyframes stage-toast {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Narrow windows ---------- */
+@media (max-width: 1100px) {
+  .entry-page .launcher .launch-button {
+    min-width: 260px;
+  }
+  .entry-page .launcher .world-spec {
+    display: none;
+  }
+  .entry-page .launcher .hero-copy h2 {
+    font-size: clamp(64px, 14vw, 120px);
+  }
+}
+@media (max-width: 760px) {
+  .entry-page .launcher .screenshot-entry span span {
+    display: none;
+  }
+  .entry-page .launcher .hero-copy {
+    bottom: 190px;
+  }
+  .entry-page .launcher .launch-dock {
+    left: 112px;
+  }
+  .entry-page .launcher .launch-button {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-page :is(button, a, [role="button"]),
+  .entry-page :is(button, a) svg,
+  .entry-page .hero-image,
+  .entry-page .launcher .sidebar {
+    transition: none !important;
+  }
+  .entry-page :is(button, a):is(:hover, :active) {
+    transform: none !important;
+  }
+  .entry-page .status-dot,
+  .entry-page .toast {
+    animation: none;
+  }
+}
+/* Brand wordmark only shows once the rail opens, so it never clips. */
+.entry-page .launcher .sidebar .brand > span:not(.brand-mark) {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.entry-page .launcher .sidebar:is(:hover, :focus-within) .brand > span:not(.brand-mark) {
+  opacity: 1;
+}
+
+/* ---- Fixes: clean rail edge + clearer floating buttons ---- */
+.entry-page .launcher .sidebar :is(.project-button, .utility-nav button, .account) {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  justify-content: flex-start;
+}
+.entry-page .launcher .sidebar .project-button.selected {
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+  border-color: transparent;
+}
+.entry-page .launcher .world-info > :is(.world-spec, .screenshot-entry, .info-settings),
+.entry-page .launcher .ambience-button,
+.entry-page .launcher .hero-top .season,
+.entry-page .launcher .text-button,
+.entry-page .launcher .manage-button {
+  background: #0f1012c9;
+  border-color: var(--edge-strong);
+  color: var(--paper);
+}
+.entry-page .launcher .world-spec span {
+  color: #eceef0cc;
+}
+.entry-page .launcher .info-settings svg,
+.entry-page .launcher .ambience-button svg,
+.entry-page .launcher .manage-button svg {
+  width: 20px;
+  height: 20px;
+  color: var(--paper);
+}
+.entry-page .launcher .world-info > :is(.screenshot-entry, .info-settings):hover,
+.entry-page .launcher .ambience-button:hover,
+.entry-page .launcher .text-button:hover,
+.entry-page .launcher .manage-button:hover:not(:disabled) {
+  background: #ffffff3d;
+  border-color: #ffffffa6;
+}
+.entry-page .launcher .launch-button {
+  background: #0f1012c9;
+  border-color: #ffffff8c;
+}
+.entry-page .launcher .launch-button:hover:not(:disabled) {
+  background: #1b1c20e6;
+  border-color: #fff;
+}
+.entry-page .launcher .launch-button:disabled {
+  background: #0f1012c9;
+  color: #eceef0cc;
+}
+.entry-page .launcher .info-settings svg,
+.entry-page .launcher .ambience-button svg,
+.entry-page .launcher .manage-button svg {
+  flex: none;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+/* ---- Settings sheet: scrolls again, nicer resolution select ---- */
+.entry-page .drawer {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff40 transparent;
+}
+.entry-page select.select-field {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 44px;
+  cursor: pointer;
+  background-color: #0f101299;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23eceef0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+}
+.entry-page select.select-field option {
+  background: #16171a;
+  color: #eceef0;
+}
+.entry-page select.select-field:focus {
+  background-color: #1b1c20;
+}
+
+/* Bug-report block matches the rest of the sheet. */
+.entry-page .drawer .setting-section textarea,
+.entry-page .drawer textarea {
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: #0f101299;
+  color: var(--paper);
+}
+.entry-page .drawer textarea:focus {
+  outline: none;
+  border-color: #ffffff8c;
+  box-shadow: 0 0 0 4px #ffffff14;
+}
+
+/* Dev preview switcher (browser only). */
+.dev-scenarios {
+  position: fixed;
+  z-index: 50;
+  left: 50%;
+  top: 3px;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 6px;
+  align-items: center;
+  max-width: calc(100% - 24px);
+  padding: 3px 6px;
+  transform: translateX(-50%);
+  border: 1px solid var(--edge-strong);
+  border-radius: 999px;
+  background: #0f1012e6;
+  font-size: 11px;
+}
+.dev-scenarios span {
+  padding: 0 6px;
+  color: var(--paper-dim);
+}
+.dev-scenarios button {
+  flex: none;
+  padding: 3px 10px;
+  white-space: nowrap;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  color: var(--paper);
+}
+.dev-scenarios button[aria-pressed="true"] {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Every collapsed-rail icon sits on one vertical centre line. */
+.entry-page .launcher .sidebar .brand {
+  padding: 4px 8px 14px;
+  justify-content: flex-start;
+}
+.entry-page .launcher .sidebar .brand-mark {
+  flex: none;
+  width: 32px;
+  display: flex;
+  justify-content: center;
+}
+.entry-page .launcher .sidebar .project-button > :first-child,
+.entry-page .launcher .sidebar .account > :first-child {
+  margin-left: 0;
+}
+.entry-page .launcher .utility-nav button svg {
+  margin: 0 5px 0 5px;
+}
+
+/* ---- Spacing + logo fit ---- */
+.entry-page .drawer-body > .panel-button,
+.entry-page .drawer-body > .setting-section + .panel-button {
+  margin: 14px 0 22px;
+}
+.entry-page .drawer-body > .panel-button + .setting-section {
+  margin-top: 0;
+}
+.entry-page .launcher .sidebar .project-button img {
+  border-radius: 10px;
+  object-fit: contain;
+  padding: 3px;
+  background: #000;
+}
+.entry-page .launcher .sidebar .project-monogram {
+  border-radius: 10px;
+}
+
+/* Screenshot chip: breathing room between thumbnail, text and arrow. */
+.entry-page .launcher .world-info .screenshot-entry {
+  gap: 14px;
+  height: 48px;
+  padding: 0 16px 0 8px;
+}
+.entry-page .launcher .screenshot-entry > :first-child {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  margin: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #ffffff1f;
+  display: grid;
+  place-items: center;
+}
+.entry-page .launcher .screenshot-entry > :first-child svg {
+  width: 18px;
+  height: 18px;
+}
+.entry-page .launcher .screenshot-entry > :first-child img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.entry-page .launcher .screenshot-entry > span:nth-child(2) {
+  line-height: 1.35;
+  padding-right: 4px;
+}
+.entry-page .launcher .screenshot-entry > svg:last-child {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  opacity: 0.8;
+}
+.entry-page .launcher .world-info {
+  gap: 10px;
+}
+
+/* Collapsed rail: the selected ring hugs the logo itself (concentric), no stray pill. */
+.entry-page .launcher .sidebar:not(:hover):not(:focus-within) .project-button.selected {
+  background: transparent;
+  box-shadow: none;
+  border-color: transparent;
+}
+.entry-page .launcher .sidebar:not(:hover):not(:focus-within) .project-button.selected img {
+  outline: 2px solid var(--paper);
+  outline-offset: 3px;
+}
+
+/* Logo sits fully inside a circle; selected = thin concentric circle ring. */
+.entry-page .launcher .sidebar .project-button img,
+.entry-page .launcher .sidebar .project-monogram {
+  border-radius: 50%;
+}
+.entry-page .launcher .sidebar .project-button img {
+  padding: 4px;
+  object-fit: contain;
+  background: #000;
+}
+.entry-page .launcher .sidebar:not(:hover):not(:focus-within) .project-button.selected img {
+  outline: 1.5px solid #eceef0cc;
+  outline-offset: 3px;
+}
+
+/* ---- Top-right toolbar: one tidy row, one height, joined specs ---- */
+.entry-page .launcher .world-info {
+  top: 22px;
+  right: 84px;
+  gap: 10px;
+  align-items: center;
+}
+.entry-page .launcher .world-info .screenshot-entry,
+.entry-page .launcher .world-info .world-spec,
+.entry-page .launcher .world-info .info-settings,
+.entry-page .launcher .ambience-button {
+  height: 40px;
+  box-sizing: border-box;
+}
+.entry-page .launcher .world-info .screenshot-entry {
+  gap: 10px;
+  padding: 0 14px 0 6px;
+}
+.entry-page .launcher .screenshot-entry > :first-child {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+}
+.entry-page .launcher .screenshot-entry > svg:last-child {
+  display: none;
+}
+.entry-page .launcher .screenshot-entry > span:nth-child(2) {
+  font-size: 13px;
+  padding: 0;
+}
+/* Minecraft | Forge read as one capsule split by a hairline. */
+.entry-page .launcher .world-info .world-spec:nth-of-type(1),
+.entry-page .launcher .world-info .world-spec:nth-of-type(2) {
+  gap: 8px;
+  padding: 0 18px;
+  font-size: 13px;
+}
+.entry-page .launcher .world-info .screenshot-entry + .world-spec {
+  margin-right: -10px;
+  border-right: 0;
+  border-radius: 999px 0 0 999px;
+}
+.entry-page .launcher .world-info .world-spec + .world-spec {
+  border-left: 1px solid var(--edge-strong);
+  border-radius: 0 999px 999px 0;
+}
+.entry-page .launcher .world-info .info-settings {
+  width: 40px;
+  padding: 0;
+}
+/* Starlight joins the same row as a round icon button. */
+.entry-page .launcher .heading-actions {
+  top: -8px;
+  right: 0;
+}
+.entry-page .launcher .ambience-button {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+.entry-page .launcher .ambience-button span {
+  display: none;
+}
+.entry-page .launcher .ambience-button svg {
+  width: 20px;
+  height: 20px;
+}
+@media (max-width: 1100px) {
+  .entry-page .launcher .world-info .screenshot-entry + .world-spec,
+  .entry-page .launcher .world-info .world-spec + .world-spec {
+    display: none;
+  }
+}
+
+/* Photo chip: thumbnail no longer hugs the edge. */
+.entry-page .launcher .world-info .screenshot-entry {
+  gap: 12px;
+  height: 44px;
+  padding: 0 20px 0 10px;
+}
+.entry-page .launcher .screenshot-entry > :first-child {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+}
+.entry-page .launcher .screenshot-entry > span:nth-child(2) {
+  line-height: 1.4;
+}
+.entry-page .launcher .world-info .world-spec,
+.entry-page .launcher .world-info .info-settings,
+.entry-page .launcher .ambience-button {
+  height: 44px;
+}
+.entry-page .launcher .world-info .info-settings,
+.entry-page .launcher .ambience-button {
+  width: 44px;
+}
+.entry-page .launcher .world-info {
+  right: 90px;
+  gap: 12px;
+}
+.entry-page .launcher .world-info .screenshot-entry + .world-spec {
+  margin-right: -12px;
+}
+.entry-page .launcher .heading-actions {
+  top: -10px;
+}
+
+/* Launcher update pill drops below the toolbar instead of overlapping it. */
+.entry-page .launcher .heading-actions .launcher-update-button {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  z-index: 2;
+  min-height: 52px;
+  padding: 0 22px 0 16px;
+  gap: 12px;
+  white-space: nowrap;
+}
+.entry-page .launcher .launcher-update-button > span {
+  display: grid;
+  line-height: 1.3;
+  text-align: left;
+}
+.entry-page .launcher .launcher-update-button small {
+  opacity: 0.75;
+}
+.entry-page .launcher .heading-actions .launcher-update-button {
+  background: #0f1012e6;
+  border-color: #ffffffa6;
+}
+.entry-page .launcher .heading-actions .launcher-update-button:hover:not(:disabled) {
+  background: #1d1e22f2;
+}
+
+/* Rail footer: socials, account and version each get their own space. */
+.entry-page .launcher .sidebar-bottom {
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--edge);
+}
+.entry-page .launcher .sidebar:is(:hover, :focus-within) .social-caption {
+  max-height: 24px;
+  padding: 0 8px;
+  margin-bottom: -4px;
+}
+.entry-page .launcher .sidebar:is(:hover, :focus-within) .social-links {
+  max-height: 72px;
+  padding: 2px 0;
+  gap: 6px;
+}
+.entry-page .launcher .sidebar-bottom .social-links a {
+  min-height: 60px;
+  padding: 10px 6px;
+  border-radius: 20px;
+  gap: 6px;
+}
+.entry-page .launcher .account {
+  margin-top: 2px;
+}
+.entry-page .launcher .sidebar:is(:hover, :focus-within) .version {
+  max-height: 28px;
+  padding: 2px 10px 0;
+  margin-top: 2px;
+}
+.entry-page .launcher .sidebar:not(:hover):not(:focus-within) .sidebar-bottom {
+  border-top-color: transparent;
+}
+
+/* ---- One surface language: solid smoked-black fill + thin light ring ---- */
+:root {
+  --pill-fill: #0f1012d9;
+  --pill-ring: #ffffff8c;
+  --pill-fill-hover: #1d1e22f0;
+  --pill-ring-hover: #ffffffcc;
+}
+.entry-page .launcher .sidebar .project-button.selected,
+.entry-page .launcher .sidebar .project-button.selected:hover:not(:disabled) {
+  background: var(--pill-fill);
+  border: 1px solid var(--pill-ring);
+  box-shadow: none;
+}
+.entry-page .launcher .sidebar .utility-nav button:hover,
+.entry-page .launcher .sidebar .account:hover,
+.entry-page .launcher .sidebar .project-button:hover:not(:disabled):not(.selected) {
+  background: var(--pill-fill);
+  border: 1px solid var(--edge-strong);
+}
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .directory-apply, .start-button.filled, .launcher-update-button, .launch-button) {
+  background: var(--pill-fill);
+  border: 1px solid var(--pill-ring);
+  backdrop-filter: none;
+}
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .directory-apply, .launcher-update-button, .launch-button):hover:not(:disabled) {
+  background: var(--pill-fill-hover);
+  border-color: var(--pill-ring-hover);
+}
+.entry-page
+  :is(.panel-button.secondary, .directory-actions button:not(.directory-apply), .login-cancel, .gallery-retry, .manage-button) {
+  background: var(--pill-fill);
+  border: 1px solid var(--edge-strong);
+  backdrop-filter: none;
+}
+.entry-page .launcher .world-info > :is(.world-spec, .screenshot-entry, .info-settings),
+.entry-page .launcher .ambience-button,
+.entry-page .launcher .hero-top .season,
+.entry-page .launcher .text-button {
+  background: var(--pill-fill);
+  border-color: var(--pill-ring);
+  backdrop-filter: none;
+}
+.entry-page .launcher .world-info > :is(.screenshot-entry, .info-settings):hover,
+.entry-page .launcher .ambience-button:hover,
+.entry-page .launcher .text-button:hover,
+.entry-page .launcher .manage-button:hover:not(:disabled) {
+  background: var(--pill-fill-hover);
+  border-color: var(--pill-ring-hover);
+}
+.entry-page .login-content {
+  background: #0f1012e6;
+  border-color: var(--pill-ring);
+}
+
+/* ---- One surface language: translucent smoke-grey glass + thin light ring ---- */
+:root {
+  --glass: #4a4c52a6;
+  --glass-hover: #5b5d64b8;
+  --glass-ring: #ffffff59;
+  --glass-ring-hover: #ffffff8c;
+}
+.entry-page .launcher .sidebar .project-button.selected,
+.entry-page .launcher .sidebar .project-button.selected:hover:not(:disabled) {
+  background: var(--glass);
+  border: 1px solid var(--glass-ring);
+  box-shadow: none;
+}
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .directory-apply, .launcher-update-button, .launch-button),
+.entry-page .launcher .heading-actions .launcher-update-button,
+.entry-page
+  :is(.panel-button.secondary, .directory-actions button:not(.directory-apply), .login-cancel, .gallery-retry, .manage-button),
+.entry-page .launcher .world-info > :is(.world-spec, .screenshot-entry, .info-settings),
+.entry-page .launcher .ambience-button,
+.entry-page .launcher .hero-top .season,
+.entry-page .launcher .text-button {
+  background: var(--glass);
+  border: 1px solid var(--glass-ring);
+  backdrop-filter: blur(16px) saturate(1.1);
+  color: var(--paper);
+}
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .directory-apply, .launcher-update-button, .launch-button):hover:not(:disabled),
+.entry-page .launcher .heading-actions .launcher-update-button:hover:not(:disabled),
+.entry-page .launcher .world-info > :is(.screenshot-entry, .info-settings):hover,
+.entry-page .launcher .ambience-button:hover,
+.entry-page .launcher .text-button:hover,
+.entry-page .launcher .manage-button:hover:not(:disabled) {
+  background: var(--glass-hover);
+  border-color: var(--glass-ring-hover);
+}
+.entry-page .launcher .launch-button:disabled {
+  background: var(--glass);
+  color: var(--paper-dim);
+}
+
+/* ---- Final surface: same smoked glass as the left rail, faint hairline ---- */
+:root {
+  --glass: #0f1012a6;
+  --glass-hover: #1a1b1fc7;
+  --glass-ring: #ffffff2e;
+  --glass-ring-hover: #ffffff52;
+}
+.entry-page
+  :is(.microsoft-login, .panel-button:not(.secondary), .directory-apply, .launcher-update-button, .launch-button),
+.entry-page .launcher .heading-actions .launcher-update-button,
+.entry-page
+  :is(.panel-button.secondary, .directory-actions button:not(.directory-apply), .login-cancel, .gallery-retry, .manage-button),
+.entry-page .launcher .world-info > :is(.world-spec, .screenshot-entry, .info-settings),
+.entry-page .launcher .ambience-button,
+.entry-page .launcher .hero-top .season,
+.entry-page .launcher .text-button {
+  backdrop-filter: blur(22px);
+}
+.entry-page .launcher .world-info .world-spec + .world-spec {
+  border-left-color: var(--glass-ring);
+}
+/* Selected project: soft lift inside the rail, hairline edge. */
+.entry-page .launcher .sidebar .project-button.selected,
+.entry-page .launcher .sidebar .project-button.selected:hover:not(:disabled) {
+  background: #ffffff1f;
+  border: 1px solid #ffffff2e;
+}
+/* Collapsed ring: as faint as the expanded pill edge. */
+.entry-page .launcher .sidebar:not(:hover):not(:focus-within) .project-button.selected img {
+  outline: 1.5px solid #ffffff38;
+  outline-offset: 3px;
+}
+.entry-page .launcher .launch-button:disabled {
+  background: var(--glass);
+}
+
+/* ---- Hover icon motion (like the gear): launch, update, folder, photos ---- */
+.entry-page .launcher .launch-button > svg:first-child {
+  transition:
+    transform 560ms var(--soft),
+    box-shadow 560ms var(--soft) !important;
+}
+.entry-page .launcher .launch-button:hover:not(:disabled) > svg:first-child {
+  transform: scale(1.14) rotate(360deg);
+  box-shadow: 0 0 0 7px #ffffff26;
+}
+.entry-page .launcher .launcher-update-button:hover:not(:disabled) > svg:first-child {
+  transform: rotate(180deg);
+}
+.entry-page .launcher .manage-button:hover:not(:disabled) svg {
+  transform: scale(1.15) rotate(-8deg);
+}
+.entry-page .launcher .screenshot-entry:hover > :first-child {
+  transform: scale(1.1);
+  transition: transform 400ms var(--soft);
+}
+.entry-page .launcher .text-button:hover svg {
+  transform: translateX(5px);
+}
+.entry-page .launcher .ambience-button:hover svg {
+  transform: rotate(90deg) scale(1.1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .entry-page .launcher .launch-button > svg:first-child {
+    transition: none !important;
+  }
+}

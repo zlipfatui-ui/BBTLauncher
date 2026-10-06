@@ -1,6 +1,7 @@
 @import "./design/base.css";
 @import "./design/entry.css";
 @import "./design/motion.css";
+@import "./design/redesign.css";
 
 html,
 body,
@@ -9,7 +10,6 @@ body,
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: #0b0b0b;
 }
 * {
   -webkit-user-select: none;
