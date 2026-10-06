@@ -33,6 +33,8 @@ export interface SyncProjectOptions {
   fetchImpl?: typeof fetch;
   /** Abandon a download that receives no bytes for this long. */
   stallTimeoutMs?: number;
+  /** Pause before retrying a failed download (grows with each attempt). */
+  retryDelayMs?: number;
   onProgress?: (progress: { file: string; downloadedBytes: number; totalBytes: number }) => void;
 }
 
@@ -152,6 +154,13 @@ async function removeRetiredSaiNamMigrationFiles(
 /** A download that makes no progress for this long is abandoned instead of hanging the whole launcher. */
 const DOWNLOAD_STALL_MS = 30_000;
 
+const DOWNLOAD_ATTEMPTS = 3;
+
+/** A missing or forbidden file will not fix itself; anything else (network, 5xx, bad bytes) is worth another try. */
+function isRetryableDownloadError(error: unknown): boolean {
+  return !(error instanceof Error && /HTTP 4\d\d/.test(error.message));
+}
+
 /** Streams a response to disk, hashing as it goes so large mods are never held in memory. */
 async function downloadVerified(
   fetchImpl: typeof fetch,
@@ -212,6 +221,7 @@ export async function syncProject({
   baseUrl,
   fetchImpl = fetch,
   stallTimeoutMs = DOWNLOAD_STALL_MS,
+  retryDelayMs = 1000,
   onProgress
 }: SyncProjectOptions): Promise<SyncResult> {
   const project = findProject(manifest, projectId);
@@ -265,10 +275,21 @@ export async function syncProject({
   for (const { file, path: safePath, destination } of pendingFiles) {
     const requestUrl = new URL(file.url, baseUrl).toString();
     const tempPath = assertInsideDirectory(join(rootDir, 'tmp'), join(rootDir, 'tmp', projectId, safePath));
-    await downloadVerified(fetchImpl, requestUrl, file, tempPath, stallTimeoutMs, (bytes) => {
-      downloadedBytes += bytes;
-      onProgress?.({ file: file.path, downloadedBytes, totalBytes });
-    });
+    for (let attempt = 1; ; attempt += 1) {
+      let attemptBytes = 0;
+      try {
+        await downloadVerified(fetchImpl, requestUrl, file, tempPath, stallTimeoutMs, (bytes) => {
+          attemptBytes += bytes;
+          downloadedBytes += bytes;
+          onProgress?.({ file: file.path, downloadedBytes, totalBytes });
+        });
+        break;
+      } catch (error) {
+        downloadedBytes -= attemptBytes;
+        if (attempt >= DOWNLOAD_ATTEMPTS || !isRetryableDownloadError(error)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt));
+      }
+    }
 
     await mkdir(dirname(destination), { recursive: true });
     await rm(destination, { force: true });

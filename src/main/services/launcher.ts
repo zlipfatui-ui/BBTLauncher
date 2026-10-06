@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -131,10 +131,29 @@ export function createXmclLauncher(): LauncherDependency {
       const [installer, core] = await Promise.all([import('@xmcl/installer'), import('@xmcl/core')]);
       return createXmclLauncherFromModules({
         installer: installer as unknown as XmclModuleSet['installer'],
-        core: core as unknown as XmclModuleSet['core']
+        core: core as unknown as XmclModuleSet['core'],
+        openJvmOutput: openJvmLogFile
       }).launchMinecraft(options);
     }
   };
+}
+
+interface JvmOutput {
+  stdio: 'ignore' | ['ignore', number, number];
+  /** Called once the child has inherited the handle. */
+  release(): void;
+}
+
+/** Keeps the JVM's console output, so a crash before Minecraft writes latest.log still leaves something to send. */
+function openJvmLogFile(projectDir: string): JvmOutput {
+  try {
+    const logDir = join(projectDir, 'logs');
+    mkdirSync(logDir, { recursive: true });
+    const fd = openSync(join(logDir, 'launcher-jvm.log'), 'w');
+    return { stdio: ['ignore', fd, fd], release: () => closeSync(fd) };
+  } catch {
+    return { stdio: 'ignore', release: () => undefined };
+  }
 }
 
 interface XmclModuleSet {
@@ -159,6 +178,8 @@ interface XmclModuleSet {
     launch: (options: Record<string, unknown>) => Promise<{ pid?: number }>;
   };
   resolveJavaExecutable?: (javaMajor: number) => Promise<string>;
+  /** Where Minecraft's console output goes. Default: discarded, so tests never touch a real folder. */
+  openJvmOutput?: (projectDir: string) => JvmOutput;
   runForgeInstallerJar?: (options: {
     minecraftLocation: string;
     minecraftVersion: string;
@@ -362,30 +383,36 @@ export function createXmclLauncherFromModules(modules: XmclModuleSet): LauncherD
       const version = `${options.minecraftVersion}-forge-${options.loaderVersion}`;
       const javaPath = options.javaPath || (await resolveJava(options.javaMajor));
 
-      const child = await modules.core.launch({
-        gamePath: options.projectDir,
-        resourcePath: minecraftLocation,
-        version,
-        accessToken: options.minecraftAccessToken,
-        gameProfile: {
-          name: options.profile.name,
-          id: options.profile.id
-        },
-        userType: 'msa',
-        minMemory: options.memoryMb,
-        maxMemory: options.memoryMb,
-        resolution: options.fullscreen
-          ? undefined
-          : {
-              width: options.width,
-              height: options.height
-            },
-        javaPath,
-        extraExecOption: {
-          detached: true,
-          stdio: 'ignore'
-        }
-      });
+      const output = modules.openJvmOutput?.(options.projectDir) ?? { stdio: 'ignore' as const, release: () => undefined };
+      let child: { pid?: number };
+      try {
+        child = await modules.core.launch({
+          gamePath: options.projectDir,
+          resourcePath: minecraftLocation,
+          version,
+          accessToken: options.minecraftAccessToken,
+          gameProfile: {
+            name: options.profile.name,
+            id: options.profile.id
+          },
+          userType: 'msa',
+          minMemory: options.memoryMb,
+          maxMemory: options.memoryMb,
+          resolution: options.fullscreen
+            ? undefined
+            : {
+                width: options.width,
+                height: options.height
+              },
+          javaPath,
+          extraExecOption: {
+            detached: true,
+            stdio: output.stdio
+          }
+        });
+      } finally {
+        output.release();
+      }
       return { pid: typeof child?.pid === 'number' ? child.pid : undefined };
     }
   };

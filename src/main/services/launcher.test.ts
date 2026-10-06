@@ -305,7 +305,8 @@ describe('launch service', () => {
     expect(launchResult).toEqual({ pid: 2233 });
   });
 
-  it('ignores Minecraft stdio so Forge console output cannot block startup', async () => {
+  it('redirects Minecraft stdio to a file handle so console output cannot block startup', async () => {
+    const release = vi.fn();
     const launch = vi.fn(async () => ({ pid: 2233 }));
     const launcher = createXmclLauncherFromModules({
       installer: {
@@ -322,7 +323,8 @@ describe('launch service', () => {
         Version: { parse: vi.fn() },
         launch
       },
-      resolveJavaExecutable: async () => 'C:/Java/17/bin/java.exe'
+      resolveJavaExecutable: async () => 'C:/Java/17/bin/java.exe',
+      openJvmOutput: () => ({ stdio: ['ignore', 7, 7], release })
     });
 
     await launcher.launchMinecraft({
@@ -346,10 +348,11 @@ describe('launch service', () => {
       expect.objectContaining({
         extraExecOption: expect.objectContaining({
           detached: true,
-          stdio: 'ignore'
+          stdio: ['ignore', 7, 7]
         })
       })
     );
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it('reports granular Minecraft, Forge, and dependency install phases', async () => {

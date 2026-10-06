@@ -122,9 +122,39 @@ describe('project sync downloads', () => {
     try {
       await expect(syncProject({
         rootDir: root, projectId: 'northvale', manifest: makeManifest('expected'),
-        baseUrl: 'https://bbt.example', fetchImpl: async () => new Response('wrong')
+        baseUrl: 'https://bbt.example', fetchImpl: async () => new Response('wrong'), retryDelayMs: 0
       })).rejects.toThrow(/sha256/i);
       expect(existsSync(join(root, 'tmp', 'northvale', 'mods', 'test.jar'))).toBe(false);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('retries a flaky download without double counting progress', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-retry-'));
+    try {
+      let calls = 0;
+      const progress: number[] = [];
+      const result = await syncProject({
+        rootDir: root, projectId: 'northvale', manifest: makeManifest('northvale mod bytes'),
+        baseUrl: 'https://bbt.example', retryDelayMs: 0,
+        onProgress: (p) => progress.push(p.downloadedBytes),
+        fetchImpl: async () => (++calls < 3 ? new Response('', { status: 503 }) : new Response('northvale mod bytes'))
+      });
+      expect(calls).toBe(3);
+      expect(result.downloaded).toBe(1);
+      expect(Math.max(...progress)).toBe(Buffer.byteLength('northvale mod bytes'));
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('does not retry a missing file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bbt-404-'));
+    try {
+      let calls = 0;
+      await expect(syncProject({
+        rootDir: root, projectId: 'northvale', manifest: makeManifest('body'),
+        baseUrl: 'https://bbt.example', retryDelayMs: 0,
+        fetchImpl: async () => { calls += 1; return new Response('', { status: 404 }); }
+      })).rejects.toThrow(/404/);
+      expect(calls).toBe(1);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
@@ -136,7 +166,7 @@ describe('project sync downloads', () => {
       })) as unknown as typeof fetch;
       await expect(syncProject({
         rootDir: root, projectId: 'northvale', manifest: makeManifest('body'),
-        baseUrl: 'https://bbt.example', fetchImpl, stallTimeoutMs: 50
+        baseUrl: 'https://bbt.example', fetchImpl, stallTimeoutMs: 50, retryDelayMs: 0
       })).rejects.toThrow(/stalled/i);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
@@ -161,7 +191,7 @@ describe('project sync', () => {
     const manifest = asSaiNam(makeFileManifest('config/test.txt', 'pack'));
     manifest.projects[0].files.push({ ...manifest.projects[0].files[0], path: 'resourcepacks/default.zip', url: '/files/pack.zip', syncMode: 'seed' });
     try {
-      const options = { rootDir: root, projectId: 'sainam', manifest, baseUrl: 'https://example.test' };
+      const options = { rootDir: root, projectId: 'sainam', manifest, baseUrl: 'https://example.test', retryDelayMs: 0 };
       await syncProject({ ...options, fetchImpl: async () => new Response('pack') });
       await rm(join(root, 'projects/sainam'), { recursive: true });
       await expect(syncProject({ ...options, fetchImpl: async (url) => String(url).endsWith('pack.zip') ? new Response('', { status: 503 }) : new Response('pack') })).rejects.toThrow(/503/);
@@ -225,7 +255,8 @@ describe('project sync', () => {
           projectId: 'northvale',
           manifest,
           baseUrl: 'https://bbt.example',
-          fetchImpl: async () => new Response('wrong')
+          fetchImpl: async () => new Response('wrong'),
+          retryDelayMs: 0
         })
       ).rejects.toThrow(/sha256/i);
 

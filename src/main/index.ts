@@ -36,6 +36,7 @@ import { createContentDrawerWindowController } from './services/content-drawer-w
 import { createProjectProgressEvent } from './services/project-progress.js';
 import electronUpdater from 'electron-updater';
 import { prepareGameDirectory } from './services/game-directory.js';
+import { managedJavaPath } from './services/managed-java.js';
 import { createRuntimeOperations } from './services/runtime-operations.js';
 import { readSystemMemoryInfo } from './services/system-memory.js';
 import { createProjectScreenshotsService } from './services/project-screenshots.js';
@@ -191,14 +192,15 @@ const projectLaunchManager = createProjectLaunchManager({
     const runtimeRoot = getRuntimeRoot(settings);
     const manifest = cachedManifest || await manifestClient.refresh();
     const project = manifest.projects.find((entry) => entry.id === state.projectId);
+    if (!project) return;
     await writeLaunchDiagnostics({
       rootDir: runtimeRoot,
       projectId: state.projectId,
       pid: state.pid,
       runtime: {
-        minecraftVersion: project?.minecraft.version || '1.20.1',
-        loaderVersion: project?.minecraft.loaderVersion || '47.4.20',
-        javaPath: join(runtimeRoot, 'runtimes', 'microsoft-jdk-17-x64', 'bin', 'java.exe')
+        minecraftVersion: project.minecraft.version,
+        loaderVersion: project.minecraft.loaderVersion,
+        javaPath: managedJavaPath(runtimeRoot)
       }
     });
   }
@@ -344,7 +346,6 @@ function registerIpc() {
   runtimeHandle('project:launch', (event, projectId: string) =>
     toIpcResult(async () => {
       assertProjectAvailable(projectId);
-      readSystemMemoryInfo();
       const settings = await loadSettings(launcherRoot);
       const runtimeRoot = getRuntimeRoot(settings);
       const manifest = await manifestClient.refresh();
@@ -519,6 +520,29 @@ function registerIpc() {
   ipcMain.handle('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
 }
 
+/**
+ * GitHub's release feed lags a publish by a few minutes, so one check at startup misses fresh releases.
+ * Keep checking while the launcher is open, and once more whenever the window regains focus.
+ */
+const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+const UPDATE_FOCUS_THROTTLE_MS = 2 * 60 * 1000;
+
+function scheduleUpdateChecks() {
+  let lastCheck = 0;
+  const check = () => {
+    // Never interrupt a download, a finished download waiting for restart, or an install already underway.
+    const { status } = updateService.getState();
+    if (status === 'checking' || status === 'downloading' || status === 'downloaded') return;
+    lastCheck = Date.now();
+    void updateService.check();
+  };
+  setTimeout(check, 1200);
+  setInterval(check, UPDATE_CHECK_INTERVAL_MS);
+  app.on('browser-window-focus', () => {
+    if (Date.now() - lastCheck >= UPDATE_FOCUS_THROTTLE_MS) check();
+  });
+}
+
 // Two launchers would sync and write the same game folder at once, and runtimeOperations only guards one process.
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
@@ -535,9 +559,7 @@ app.whenReady().then(async () => {
   safelyUpdateDiscordPresence(() => discordPresence.start());
   registerIpc();
   createWindow(await loadSettings(launcherRoot));
-  setTimeout(() => {
-    void updateService.check();
-  }, 1200);
+  scheduleUpdateChecks();
 
   app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow(await loadSettings(launcherRoot));

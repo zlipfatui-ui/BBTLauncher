@@ -87,6 +87,7 @@ export async function collectLogFiles(rootDir: string, projectId: string | undef
     const projectDir = join(rootDir, 'projects', projectId);
     await add('latest.log', join(projectDir, 'logs', 'latest.log'));
     await add('debug.log', join(projectDir, 'logs', 'debug.log'));
+    await add('launcher-jvm.log', join(projectDir, 'logs', 'launcher-jvm.log'));
     await add('crash-report.txt', await newestFile(join(projectDir, 'crash-reports'), /\.txt$/i));
     await add('launch-diagnostics.json', await newestFile(join(rootDir, 'diagnostics', projectId), /\.json$/i));
     await add('jvm-crash.log', await newestFile(projectDir, /^hs_err_pid\d+\.log$/i));

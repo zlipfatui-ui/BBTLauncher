@@ -105,6 +105,10 @@ async function downloadArchive(
   await pipeline(input, createWriteStream(destination));
 }
 
+export function managedJavaPath(rootDir: string): string {
+  return join(rootDir, 'runtimes', 'microsoft-jdk-17-x64', 'bin', 'java.exe');
+}
+
 export async function ensureManagedJava(options: ManagedJavaOptions): Promise<string> {
   const {
     rootDir,
@@ -121,7 +125,7 @@ export async function ensureManagedJava(options: ManagedJavaOptions): Promise<st
   }
 
   const runtimeDir = join(rootDir, 'runtimes', 'microsoft-jdk-17-x64');
-  const installedJava = join(runtimeDir, 'bin', 'java.exe');
+  const installedJava = managedJavaPath(rootDir);
   if (await exists(installedJava)) {
     if (await verifyJava(installedJava)) return installedJava;
     await rm(runtimeDir, { recursive: true, force: true });
