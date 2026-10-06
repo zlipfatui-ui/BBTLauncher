@@ -244,7 +244,20 @@ export function MainView({
             onClick={() => open("account")}
             aria-label="บัญชีผู้เล่น"
           >
-            <span className="avatar">{profile?.avatarInitial ?? "?"}</span>
+            <span className="avatar">
+              <span>{profile?.avatarInitial ?? "?"}</span>
+              {profile && (
+                <img
+                  src={`https://mc-heads.net/avatar/${profile.id}/64`}
+                  alt=""
+                  aria-hidden="true"
+                  draggable={false}
+                  onError={(event) =>
+                    (event.currentTarget.style.display = "none")
+                  }
+                />
+              )}
+            </span>
             <span>
               <strong>{profile?.name ?? "เข้าสู่ระบบ"}</strong>
               <small>Microsoft {profile ? "Connected" : ""}</small>
@@ -313,15 +326,14 @@ export function MainView({
             draggable={false}
           />
           <div className="hero-shade" />
-          <div className="hero-top">
-            <span className="season">{seasonLabel.toUpperCase()}</span>
-            <span className="edition">MINECRAFT JAVA EDITION</span>
-          </div>
           <div className="hero-copy">
             <div className="world-symbol">
               <Icon name="star" />
               <span />
             </div>
+            {seasonLabel && (
+              <span className="season">{seasonLabel.toUpperCase()}</span>
+            )}
             <h2>{project.title.toUpperCase()}</h2>
             {(project.tagline ?? (isSainam ? "สาย-น้ำ" : "")) && (
               <p className="world-tagline">{project.tagline ?? "สาย-น้ำ"}</p>

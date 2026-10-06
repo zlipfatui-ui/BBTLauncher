@@ -101,7 +101,7 @@ describe("0.3.8 production navigation", () => {
     const api = apiFor();
     const { container } = render(<App api={api} />);
     const sky = container.querySelector("#entry-stars");
-    expect(sky?.children.length).toBe(100);
+    expect(sky?.children.length).toBe(56);
     fireEvent.click(screen.getByRole("button", { name: "Click to start" }));
     expect(
       await screen.findByRole("button", { name: /Northvale.*ยังไม่เปิด/ }),

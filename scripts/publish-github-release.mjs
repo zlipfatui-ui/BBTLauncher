@@ -9,10 +9,10 @@ const repository = '/repos/zlipfatui-ui/BBTLauncher';
 export function releaseNotes(version) {
   return `BeforeBedtime Launcher ${version}
 
-- New launcher design: full-colour world artwork fills the window, a slim icon rail expands on hover, and Launch is a single button in the bottom-right corner.
-- Spec chips (screenshots, Minecraft, Forge, settings, Starlight) share one row at the top right; every control uses the same smoked-glass look.
-- Smoother hover and press motion on every button, including the Launch and update icons, with reduced-motion support.
-- Settings opens as a rounded, scrollable sheet that reaches the bug-report section, and the window-size picker matches the theme.`;
+- Lighter on the CPU: fewer stars, no per-star glow filters, the sky stops drawing behind the world artwork, and no live blur over moving stars on the start and login screens.
+- Your Minecraft skin shows in the left rail and account panel as a rounded square.
+- The season label sits above the world title and the "tonight, which world?" heading is gone.
+- Theme-matched scrollbars and better padding on the star toggle.`;
 }
 
 export async function publishRelease({ version, commit, assets, token, fetchImpl = fetch, log = console.log }) {

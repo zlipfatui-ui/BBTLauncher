@@ -1401,3 +1401,155 @@ body,
     transition: none !important;
   }
 }
+
+/* ---- Star toggle in the entry footer: real padding so the hover pill breathes ---- */
+.entry-page .entry-motion-toggle {
+  min-height: 36px;
+  padding: 0 16px 0 12px;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-size: 11px;
+}
+.entry-page .entry-motion-toggle:hover {
+  border-color: var(--edge);
+}
+.entry-page .entry-motion-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- Performance ---- */
+/* 1. Per-star glow filters (56 elements) are the most expensive paint; drop them. */
+.entry-page .entry-particle > i,
+.entry-page .entry-particle.is-spark > i {
+  box-shadow: none;
+  filter: none;
+}
+/* 2. On the main screen the artwork covers the sky completely: stop drawing it. */
+.entry-page[data-entry-route="main"] :is(#entry-stars, .entry-meteors, .entry-atmosphere) {
+  display: none;
+}
+/* 3. Live blur over moving stars is re-computed every frame; use solid fills on entry screens. */
+.entry-page:not([data-entry-route="main"]) * {
+  backdrop-filter: none !important;
+}
+.entry-page .login-content {
+  background: #101113f2;
+}
+.entry-page .login-feedback {
+  background: #16171a;
+}
+/* 4. No continuous zoom under the glass chips (forced blur re-render for 3s on hover). */
+.entry-page .launcher .hero-image,
+.entry-page .launcher .world-feature:hover .hero-image {
+  transition: none;
+  transform: none;
+}
+/* 5. Cheap status pulse: opacity only, no shadow repaint. */
+.entry-page .launcher .status-dot {
+  animation: rd-dot 2.4s ease-in-out infinite;
+  box-shadow: none;
+}
+@keyframes rd-dot {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .entry-page .launcher .status-dot {
+    animation: none;
+  }
+}
+
+/* ---- Scrollbars: slim floating thumb, no arrows, kept clear of the rounded corners ---- */
+.entry-page,
+.entry-page * {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+.entry-page ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+  background: transparent;
+}
+.entry-page ::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.entry-page ::-webkit-scrollbar-track,
+.entry-page ::-webkit-scrollbar-corner {
+  background: transparent;
+  margin: 22px 0;
+}
+.entry-page ::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  border: 5px solid transparent;
+  border-radius: 999px;
+  background: #ffffff40;
+  background-clip: padding-box;
+  transition: background-color 200ms ease;
+}
+.entry-page ::-webkit-scrollbar-thumb:hover {
+  background: #ffffff7a;
+  background-clip: padding-box;
+}
+.entry-page ::-webkit-scrollbar-thumb:active {
+  background: #ffffffa6;
+  background-clip: padding-box;
+}
+
+/* ---- Skin avatars: rounded squares, pixel-sharp, shown in the rail too ---- */
+.entry-page .launcher .avatar,
+.entry-page .launcher .account-profile .avatar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.entry-page .launcher .sidebar .avatar {
+  width: 34px;
+  height: 34px;
+  background: #ffffff1f;
+  color: var(--paper);
+}
+.entry-page .launcher .avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  border-radius: 0;
+}
+.entry-page .launcher .account-profile .avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
+  background: #ffffff1f;
+}
+
+/* ---- Heading text stays for screen readers only; season chip sits above the title ---- */
+.entry-page .launcher .page-heading > div:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.entry-page .launcher .hero-copy {
+  align-items: flex-start;
+}
+.entry-page .launcher .hero-copy .season {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 14px 4px;
+  padding: 6px 14px;
+  border: 1px solid var(--glass-ring);
+  border-radius: 999px;
+  background: var(--glass);
+  backdrop-filter: blur(22px);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--paper);
+}

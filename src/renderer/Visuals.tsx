@@ -106,7 +106,7 @@ export function IconDefinitions() {
     </svg>
   );
 }
-const particles = Array.from({ length: 100 }, (_, i) => {
+const particles = Array.from({ length: 56 }, (_, i) => {
   const spark = i % 3 === 0,
     time = spark ? 18 + (i % 9) : 30 + (i % 13);
   const size = spark ? 8 + (i % 5) * 2.5 : i % 2 ? 1.5 : 2.2;
